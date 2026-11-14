@@ -29,6 +29,20 @@ class AuthConfig:
     otp_resend_seconds: int
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    """A true/false setting from the environment, else `default`.
+
+    Lets a deployment (e.g. Render: AUTH_COOKIE_SECURE=true for HTTPS) change a
+    value without editing auth.toml, which keeps the development defaults.
+    """
+    value = os.environ.get(name, "").strip().lower()
+    if value in {"1", "true", "yes"}:
+        return True
+    if value in {"0", "false", "no"}:
+        return False
+    return default
+
+
 def load_config(config_path: Path = DEFAULT_CONFIG) -> AuthConfig:
     """Read and check auth.toml; a missing or wrong value stops the start-up."""
     with open(config_path, "rb") as fh:
@@ -44,7 +58,7 @@ def load_config(config_path: Path = DEFAULT_CONFIG) -> AuthConfig:
         db_path=db_path,
         session_days=int(section["session_days"]),
         cookie_name=str(section["cookie_name"]),
-        cookie_secure=bool(section["cookie_secure"]),
+        cookie_secure=_env_flag("AUTH_COOKIE_SECURE", bool(section["cookie_secure"])),
         otp_length=int(section["otp_length"]),
         otp_ttl_minutes=int(section["otp_ttl_minutes"]),
         otp_max_attempts=int(section["otp_max_attempts"]),

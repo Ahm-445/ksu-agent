@@ -456,3 +456,9 @@ def test_chat_401_carries_cors_headers_for_the_front_end(auth, monkeypatch, tmp_
     )
     assert response.status_code == 401
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+@pytest.mark.parametrize("value, expected", [("true", True), ("1", True), ("false", False), ("", False)])
+def test_cookie_secure_can_be_set_by_the_environment(monkeypatch, value, expected):
+    monkeypatch.setenv("AUTH_COOKIE_SECURE", value)
+    assert auth_config.load_config().cookie_secure is expected

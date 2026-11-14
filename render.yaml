@@ -1,0 +1,52 @@
+# Render Blueprint for a test deployment of KSU Agent (two free web services).
+#
+# The browser only talks to ksu-agent-web: it forwards /api/* to ksu-agent-api
+# (frontend/next.config.ts), so the login cookie is first-party on one address.
+#
+# Values marked sync: false are asked for when the Blueprint is created:
+#   OPENAI_API_KEY  the project's OpenAI key (never commit it)
+#   BACKEND_URL     the API's public URL, e.g. https://ksu-agent-api.onrender.com
+#
+# Free-plan limits: services sleep after ~15 minutes idle (first request then
+# takes about a minute), and the disk is reset on every deploy or restart, so
+# accounts in data/private/auth.sqlite3 do not survive a redeploy.
+
+services:
+  - type: web
+    name: ksu-agent-api
+    runtime: python
+    plan: free
+    buildCommand: >-
+      pip install -r backend/requirements.txt &&
+      python backend/scripts/fetch_sources.py --source-id ref-01 &&
+      python backend/scripts/parse_source.py --source-id ref-01 &&
+      python backend/scripts/chunk_source.py --source-id ref-01 &&
+      python backend/scripts/embed_chunks.py --source-id ref-01
+    startCommand: uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT
+    healthCheckPath: /docs
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AUTH_COOKIE_SECURE
+        value: "true"
+
+  - type: web
+    name: ksu-agent-web
+    runtime: node
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_PUBLIC_API_URL
+        value: /api
+      - key: NEXT_PUBLIC_AUTH_MODE
+        value: api
+      - key: NEXT_PUBLIC_CHAT_MODE
+        value: api
+      - key: BACKEND_URL
+        sync: false

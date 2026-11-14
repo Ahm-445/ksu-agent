@@ -13,7 +13,8 @@
 #   session_days          lifetime of the login cookie and its server-side session
 #   cookie_name           name of the httpOnly session cookie
 #   cookie_secure         true sends the cookie over HTTPS only; keep false for
-#                         http://localhost during development
+#                         http://localhost during development; a deployment sets
+#                         AUTH_COOKIE_SECURE=true instead of editing this file
 #   otp_length            digits in a verification code
 #   otp_ttl_minutes       how long a code stays valid
 #   otp_max_attempts      wrong guesses allowed before the code is discarded
