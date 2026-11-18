@@ -7,11 +7,24 @@ import {
   TOOL_CATEGORIES,
   type Category,
   type ExtensionResponse,
+  type ToolErrorCode,
+  type ToolName,
 } from "./protocol.js";
 
 export type HandlerState = {
   categoriesAllowed: string[];
 };
+
+/** What a tool run produced: the fields a tool needs, or why it could not run. */
+export type ToolOutcome =
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; error: ToolErrorCode };
+
+/**
+ * Runs one tool. Injected so the handler stays pure: the tests pass a fake, and the
+ * service worker passes the one that talks to the Edugate tab.
+ */
+export type ToolRunner = (tool: ToolName) => Promise<ToolOutcome>;
 
 function isAllowedOrigin(origin: string | undefined): boolean {
   return (
@@ -38,11 +51,12 @@ function allowedCategories(values: string[]): Category[] {
   return values.filter(isCategory);
 }
 
-export function handleMessage(
+export async function handleMessage(
   message: unknown,
   senderOrigin: string | undefined,
   state: HandlerState,
-): ExtensionResponse | null {
+  runTool: ToolRunner,
+): Promise<ExtensionResponse | null> {
   if (!isAllowedOrigin(senderOrigin)) {
     return null;
   }
@@ -69,7 +83,9 @@ export function handleMessage(
     return badRequest(requestIdOf(message));
   }
 
-  if (!isToolName(fields.tool)) {
+  const tool = fields.tool;
+
+  if (!isToolName(tool)) {
     return {
       kind: "tool_result",
       request_id: fields.request_id,
@@ -78,9 +94,7 @@ export function handleMessage(
     };
   }
 
-  const category = TOOL_CATEGORIES[fields.tool];
-
-  if (!state.categoriesAllowed.includes(category)) {
+  if (!state.categoriesAllowed.includes(TOOL_CATEGORIES[tool])) {
     return {
       kind: "tool_result",
       request_id: fields.request_id,
@@ -89,11 +103,22 @@ export function handleMessage(
     };
   }
 
-  // Step 4 adds the page readers. Until then a consented tool has no page to read.
+  const outcome = await runTool(tool);
+
+  if (!outcome.ok) {
+    return {
+      kind: "tool_result",
+      request_id: fields.request_id,
+      ok: false,
+      error: outcome.error,
+    };
+  }
+
   return {
     kind: "tool_result",
     request_id: fields.request_id,
-    ok: false,
-    error: "page_unreadable",
+    ok: true,
+    data: outcome.data,
+    read_at: new Date().toISOString(),
   };
 }

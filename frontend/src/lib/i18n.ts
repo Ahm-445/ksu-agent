@@ -119,9 +119,14 @@ export type Dictionary = {
     searching: string;
     disclaimer: string;
     newMessages: string;
+    personalNote: string;
     errors: {
       unavailable: string;
       invalid: string;
+      extensionMissing: string;
+      consentMissing: string;
+      notSignedIn: string;
+      readFailed: string;
     };
     empty: {
       greeting: string;
@@ -285,9 +290,14 @@ const ar: Dictionary = {
     searching: "جارٍ البحث في المصادر…",
     disclaimer: "قد يخطئ المساعد. تحقق دائمًا من المصدر.",
     newMessages: "رسائل جديدة",
+    personalNote: "من حسابك في Edugate — لم يُرسل إلى خادم KSU Agent",
     errors: {
       unavailable: "تعذر الاتصال بالخادم، حاول مرة أخرى.",
       invalid: "تعذر معالجة هذه الرسالة. جرّب صياغتها بشكل مختلف.",
+      extensionMissing: "ثبّت إضافة KSU Agent لتقرأ معدلك من Edugate.",
+      consentMissing: "افتح الإضافة واسمح بقراءة الدرجات والمعدل.",
+      notSignedIn: "افتح Edugate أو أعد تحميل صفحته في هذا المتصفح ثم سجّل الدخول.",
+      readFailed: "تعذر قراءة صفحة Edugate، حاول مرة أخرى.",
     },
     empty: {
       greeting: "مرحبًا {name}، كيف أقدر أساعدك؟",
@@ -458,9 +468,14 @@ const en: Dictionary = {
     searching: "Searching the official sources…",
     disclaimer: "The assistant can make mistakes. Always check the source.",
     newMessages: "New messages",
+    personalNote: "From your Edugate — not sent to KSU Agent's server",
     errors: {
       unavailable: "Could not reach the server, please try again.",
       invalid: "This message could not be processed. Try rewording it.",
+      extensionMissing: "Install the KSU Agent extension to read your GPA from Edugate.",
+      consentMissing: "Open the extension and allow reading grades and GPA.",
+      notSignedIn: "Open or reload Edugate in this browser and log in.",
+      readFailed: "Could not read your Edugate page, please try again.",
     },
     empty: {
       greeting: "Hi {name}, how can I help?",

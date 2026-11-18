@@ -120,3 +120,167 @@ export async function detectExtension(): Promise<ExtensionStatus> {
     return { installed: false };
   }
 }
+
+const TOOL_TIMEOUT_MS = 25_000;
+
+export type GpaData = {
+  cumulative_gpa: string;
+  scale: string;
+  earned_hours: number;
+  registered_hours: number;
+  as_of_term: string;
+};
+
+export type ToolErrorKind =
+  | "not_installed"
+  | "no_consent"
+  | "not_logged_in"
+  | "page_unreadable"
+  | "timeout";
+
+export type ToolResult =
+  | { ok: true; data: GpaData; readAt: string }
+  | { ok: false; error: ToolErrorKind };
+
+const TOOL_ERRORS: readonly ToolErrorKind[] = [
+  "no_consent",
+  "not_logged_in",
+  "page_unreadable",
+  "timeout",
+];
+
+function createRequestId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {
+    // Fall through to the timestamp based id.
+  }
+
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function isGpaData(value: unknown): value is GpaData {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const data = value as Record<string, unknown>;
+
+  return (
+    typeof data.cumulative_gpa === "string" &&
+    typeof data.scale === "string" &&
+    typeof data.earned_hours === "number" &&
+    typeof data.registered_hours === "number" &&
+    typeof data.as_of_term === "string"
+  );
+}
+
+function parseToolResult(value: unknown): ToolResult | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const response = value as Record<string, unknown>;
+
+  if (response.kind !== "tool_result") {
+    return null;
+  }
+
+  if (response.ok === true) {
+    if (typeof response.read_at !== "string" || !isGpaData(response.data)) {
+      return null;
+    }
+
+    return { ok: true, data: response.data, readAt: response.read_at };
+  }
+
+  if (response.ok === false) {
+    const error = response.error;
+
+    // Anything the contract does not name is reported as an unreadable page.
+    return {
+      ok: false,
+      error: TOOL_ERRORS.includes(error as ToolErrorKind)
+        ? (error as ToolErrorKind)
+        : "page_unreadable",
+    };
+  }
+
+  return null;
+}
+
+type Ask =
+  | { kind: "reply"; value: unknown }
+  | { kind: "silent" }
+  | { kind: "failed" };
+
+function askExtension(
+  runtime: Runtime,
+  extensionId: string,
+  message: unknown,
+): Promise<Ask> {
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      settled = true;
+      resolve({ kind: "silent" });
+    }, TOOL_TIMEOUT_MS);
+
+    const finish = (outcome: Ask) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(timer);
+      resolve(outcome);
+    };
+
+    try {
+      runtime.sendMessage(extensionId, message, (response?: unknown) => {
+        // lastError means no extension answered: it is not installed, or this page
+        // is not one it listens to.
+        if (runtime.lastError) {
+          finish({ kind: "failed" });
+          return;
+        }
+
+        finish({ kind: "reply", value: response });
+      });
+    } catch {
+      finish({ kind: "failed" });
+    }
+  });
+}
+
+/**
+ * Runs one tool in the student's browser. The values come back from the extension and
+ * stay here: they are never sent to the KSU Agent server.
+ */
+export async function runTool(tool: string): Promise<ToolResult> {
+  const runtime = readRuntime();
+
+  if (!runtime || !EXTENSION_ID) {
+    return { ok: false, error: "not_installed" };
+  }
+
+  const answer = await askExtension(runtime, EXTENSION_ID, {
+    kind: "run_tool",
+    request_id: createRequestId(),
+    tool,
+    args: {},
+  });
+
+  if (answer.kind === "failed") {
+    return { ok: false, error: "not_installed" };
+  }
+
+  if (answer.kind === "silent") {
+    return { ok: false, error: "timeout" };
+  }
+
+  return parseToolResult(answer.value) ?? { ok: false, error: "page_unreadable" };
+}

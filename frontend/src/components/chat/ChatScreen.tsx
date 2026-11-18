@@ -15,6 +15,8 @@ import {
   writeChat,
   type ChatMessage,
 } from "@/lib/chatStorage";
+import { runTool } from "@/lib/extension";
+import { gpaAnswer, toolErrorKey } from "@/lib/personalAnswers";
 
 function createId(): string {
   try {
@@ -29,7 +31,7 @@ function createId(): string {
 }
 
 export function ChatScreen() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { user, status, logout } = useAuth();
   const router = useRouter();
 
@@ -91,6 +93,42 @@ export function ChatScreen() {
     );
   }, []);
 
+  // A tool runs in the student's browser: the answer is built here from the values the
+  // extension read, and those values are never sent back to the server.
+  const answerWithTool = useCallback(
+    async (tool: string, requestId: number) => {
+      const outcome = await runTool(tool);
+
+      if (!mountedRef.current || requestRef.current !== requestId) {
+        return;
+      }
+
+      abortRef.current = null;
+      setPending(false);
+
+      if (outcome.ok) {
+        appendMessage({
+          id: createId(),
+          role: "assistant",
+          text: gpaAnswer(outcome.data, lang),
+          note: t.chat.personalNote,
+          personal: true,
+          status: "ok",
+        });
+        return;
+      }
+
+      appendMessage({
+        id: createId(),
+        role: "assistant",
+        text: t.chat.errors[toolErrorKey(outcome.error)],
+        personal: true,
+        status: "ok",
+      });
+    },
+    [appendMessage, lang, t],
+  );
+
   const run = useCallback(
     async (question: string, userMessageId: string) => {
       const requestId = requestRef.current + 1;
@@ -107,6 +145,11 @@ export function ChatScreen() {
       });
 
       if (!mountedRef.current || requestRef.current !== requestId) {
+        return;
+      }
+
+      if (result.ok && result.kind === "tool") {
+        await answerWithTool(result.tool, requestId);
         return;
       }
 
@@ -147,7 +190,7 @@ export function ChatScreen() {
         errorKind: result.error,
       });
     },
-    [appendMessage, logout, router, sessionId],
+    [answerWithTool, appendMessage, logout, router, sessionId],
   );
 
   const send = useCallback(

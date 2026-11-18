@@ -11,7 +11,8 @@ export type ChatErrorKind =
   | "aborted";
 
 export type SendMessageResult =
-  | { ok: true; answer: string; citations: Citation[] }
+  | { ok: true; kind: "answer"; answer: string; citations: Citation[] }
+  | { ok: true; kind: "tool"; tool: string }
   | { ok: false; error: ChatErrorKind };
 
 export type SendMessageInput = {
@@ -87,7 +88,34 @@ function parseAnswer(body: unknown): SendMessageResult | null {
     return null;
   }
 
-  return { ok: true, answer, citations: parsedCitations };
+  return { ok: true, kind: "answer", answer, citations: parsedCitations };
+}
+
+function parseTool(body: Record<string, unknown>): SendMessageResult | null {
+  const { tool } = body;
+
+  if (typeof tool !== "string" || !tool) {
+    return null;
+  }
+
+  return { ok: true, kind: "tool", tool };
+}
+
+/** A body without `type` is an answer, as the contract says. */
+function parseResponse(body: unknown): SendMessageResult | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  if (body.type === "tool") {
+    return parseTool(body);
+  }
+
+  if (body.type === undefined || body.type === "answer") {
+    return parseAnswer(body);
+  }
+
+  return null;
 }
 
 export async function sendMessage({
@@ -133,7 +161,7 @@ export async function sendMessage({
         return { ok: false, error: "server_unavailable" };
       }
 
-      return parseAnswer(body) ?? { ok: false, error: "server_unavailable" };
+      return parseResponse(body) ?? { ok: false, error: "server_unavailable" };
     }
 
     if (response.status === 401) {
