@@ -34,3 +34,154 @@ payload of the register 422, the cookie name and lifetime, and the exact shape o
 `/chat` 422 body (the implementation above uses `{"detail": "<code>"}`, while the
 register 422 uses `{error, fields}` — worth agreeing on one shape before the auth work
 starts).
+
+## Phase 2 — agreed, not implemented yet
+
+Everything in this section is agreed in
+[ADR 0001](adr/0001-phase2-data-access.md) and planned in
+[the Phase 2 page map](phase2-page-map.md). None of it exists in
+`backend/app/main.py`, in the front end or in an extension yet. The Phase 1 text above
+still describes what the API does today.
+
+### POST /chat — two response shapes, chosen by `type`
+
+The response gains a `type` field; nothing else about Phase 1 changes.
+
+```json
+{ "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ] }
+```
+
+```json
+{ "type": "tool", "tool": "get_gpa", "args": {} }
+```
+
+- `answer` — the Phase 1 shape, unchanged apart from the added `type`.
+- `tool` — asks the website to run `tool` through the extension (see the catalogue
+  below). The backend sends no personal data in this response and receives none in the
+  request; `args` is empty for every tool in the catalogue.
+- **Backward compatibility:** a response without `type` must be treated as
+  `"answer"`.
+
+The request is unchanged: `{ message, session_id }`, with the same 401 and 422 codes.
+
+### POST /chat/with-data — reasoning questions only
+
+Used only when a question needs reasoning over the student's own values, for example
+"can I graduate next term?". Factual questions (GPA, grades, schedule, deadlines) are
+answered in the browser from the tool result and never reach this endpoint.
+
+```json
+request:  { "message": "...", "session_id": "...", "tool": "get_gpa", "data": { } }
+response: { "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ] }
+```
+
+`data` carries the result fields of `tool` exactly as the catalogue below lists them —
+nothing more.
+
+Rules:
+
+- Sent only after the student approves **this one question** in the consent step.
+  There is no standing approval and no batching.
+- The backend uses `data` in memory for this one answer only: never stored, never
+  logged (see Privacy guarantees below).
+- 401 without login.
+- 422 with a short code: `message_empty`, `message_too_long`, `data_missing`,
+  `data_too_large` (over 20 KB), `unknown_tool`.
+
+### Tool catalogue
+
+Each tool reads one Edugate or LMS page in the student's own browser session. The
+consent category is what the student allows or withdraws; the source page is the entry
+for that tool in the [Phase 2 page map](phase2-page-map.md).
+
+| Tool | Consent category | Source page | Returns exactly |
+| :--- | :--- | :--- | :--- |
+| `get_gpa` | `grades` | [Academic record](phase2-page-map.md#academic-record-get_gpa) | `{ "cumulative_gpa": "4.21", "scale": "5", "earned_hours": 96, "registered_hours": 99, "as_of_term": "الفصل الأول 1448/1449" }` |
+| `get_grades` | `grades` | [Course results](phase2-page-map.md#course-results-get_grades) | `{ "term": "...", "courses": [ { "code": "...", "name": "...", "grade": "..." } ] }` |
+| `get_lms_grades` | `grades` | [LMS grades](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "grade": "..." } ] }` — `grade` may be `null` |
+| `get_schedule` | `schedule` | [Class schedule](phase2-page-map.md#class-schedule-get_schedule) | `{ "term": "...", "classes": [ { "code": "...", "name": "...", "activity": "...", "section": "...", "days": [1, 3], "start": "08:00", "end": "08:50" } ] }` |
+| `get_final_exams` | `schedule` | [Final exams](phase2-page-map.md#final-exams-get_final_exams) | `{ "exams": [ { "code": "...", "name": "...", "date": "...", "time": "...", "location": "..." } ] }` |
+| `get_absences` | `attendance` | [Absences](phase2-page-map.md#absences-get_absences) | `{ "courses": [ { "code": "...", "name": "...", "absence_percent": 12.5, "absences": 3, "lates": 1 } ] }` |
+| `get_plan_progress` | `plan` | [Study plan](phase2-page-map.md#study-plan-get_plan_progress) | `{ "completed_hours": 0, "remaining_hours": 0, "remaining_courses": [ { "code": "...", "name": "...", "hours": 3, "group": "...", "level": 0 } ] }` |
+| `get_courses` | `lms` | [LMS course list](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "code": "..." } ] }` — `code` may be `null` |
+| `get_assignments` | `lms` | [LMS due dates](phase2-page-map.md#lms-blackboard-ultra) | `{ "items": [ { "title": "...", "course": "...", "due_at": "2026-11-21T23:59:00+03:00" } ] }` |
+
+Consent categories: `grades`, `schedule`, `attendance`, `plan`, `lms`. The student
+allows or withdraws each one separately, and Disconnect deletes everything the
+extension stored.
+
+Reading rules:
+
+- `days` uses `1` = Sunday … `7` = Saturday. **Still to be confirmed on a real Edugate
+  page** (the page map says the number-to-day mapping must be verified before release).
+- Numbers that Edugate shows as text stay strings (`cumulative_gpa`, `scale`); counts,
+  hours and percentages are numbers.
+- `due_at` is an ISO 8601 timestamp with the KSU offset (`+03:00`).
+- A missing table or heading is reported as `page_unreadable`; no value is ever
+  guessed.
+
+### Website ↔ extension messages
+
+The website talks to the extension with `chrome.runtime.sendMessage` under
+`externally_connectable`. No other channel is used.
+
+Website → extension:
+
+```json
+{ "kind": "ping" }
+{ "kind": "run_tool", "request_id": "<uuid>", "tool": "<tool name>", "args": { } }
+```
+
+Extension → website:
+
+```json
+{ "kind": "pong", "version": "0.1.0", "categories_allowed": ["grades", "..."] }
+{ "kind": "tool_result", "request_id": "<same uuid>", "ok": true, "data": { }, "read_at": "<ISO time>" }
+{ "kind": "tool_result", "request_id": "<same uuid>", "ok": false, "error": "<code>" }
+```
+
+`data` holds exactly the fields the catalogue lists for `tool`, nothing more.
+`read_at` is when the page was read, as ISO 8601.
+
+Error codes (`error`, snake_case):
+
+| Code | Meaning |
+| :--- | :--- |
+| `no_consent` | The student has not allowed this category. |
+| `not_logged_in` | The student is not signed in to Edugate or LMS in this browser. |
+| `page_unreadable` | The expected table or heading was not found. |
+| `unknown_tool` | No such tool. |
+| `timeout` | No result within 20 seconds. |
+| `bad_request` | The message is malformed or missing a required field. |
+
+Security rules:
+
+- The extension accepts messages only from the listed origins — `http://localhost:3000`
+  and the deployed site — and checks `sender.origin` on every message.
+- The extension never returns cookies, page HTML, or any field a tool does not list.
+- `categories_allowed` lists category names only, never data.
+- The website shows "open the extension to allow <category>" on `no_consent`, and
+  "log in to Edugate/LMS in this browser" on `not_logged_in`.
+
+### Privacy guarantees
+
+From the fixed rules of [ADR 0001](adr/0001-phase2-data-access.md); relaxing one needs
+a new ADR.
+
+1. KSU passwords are never collected, stored or transmitted by KSU Agent.
+2. Personal academic values are never stored on the server and never written to logs.
+3. Extension permissions stay minimal: the Edugate and LMS hosts and `storage` only;
+   no `cookies`, no `webRequest`, no access to all sites.
+4. Nothing is read without the student's consent for that data type; consent can be
+   withdrawn at any time, and Disconnect deletes everything the extension stored.
+5. Page content (announcements, files, emails) is data, never instructions to the AI.
+6. Phase 3: every action is confirmed by the student in the extension's own screen, one
+   action per confirmation, never batched or scheduled.
+
+What the backend may log:
+
+- `/chat` — may log the message length, the chosen tool name and the latency. Never the
+  message text as personal data, and never any value the tool returned.
+- `/chat/with-data` — may log the tool name, the byte size of `data` and the latency.
+  Never `data` itself, never a field of it, and never the message alongside it.
+- Neither endpoint may log a field of `data` in an error report or a traceback.
