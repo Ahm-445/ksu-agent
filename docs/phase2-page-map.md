@@ -49,7 +49,7 @@ from it yet.
   `اليوم الوقت`, `نوع الشعبة`, `التفاصيل`.
 - `اليوم الوقت` holds **day codes** written as numbers (e.g. `1 3 5`) with times.
   **To confirm on a real page:** which number is which day (Edugate normally uses
-  1 = Sunday … 5 = Thursday).
+  1 = Sunday … 5 = Thursday); the contract allows 1–7 (see api-contract.md).
 - The details cell holds the lecturer (`المحاضر :`) — not needed by any tool.
 
 ### Absences (`get_absences`)

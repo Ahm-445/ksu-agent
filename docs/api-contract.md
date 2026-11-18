@@ -102,7 +102,7 @@ for that tool in the [Phase 2 page map](phase2-page-map.md).
 | `get_schedule` | `schedule` | [Class schedule](phase2-page-map.md#class-schedule-get_schedule) | `{ "term": "...", "classes": [ { "code": "...", "name": "...", "activity": "...", "section": "...", "days": [1, 3], "start": "08:00", "end": "08:50" } ] }` |
 | `get_final_exams` | `schedule` | [Final exams](phase2-page-map.md#final-exams-get_final_exams) | `{ "exams": [ { "code": "...", "name": "...", "date": "...", "time": "...", "location": "..." } ] }` |
 | `get_absences` | `attendance` | [Absences](phase2-page-map.md#absences-get_absences) | `{ "courses": [ { "code": "...", "name": "...", "absence_percent": 12.5, "absences": 3, "lates": 1 } ] }` |
-| `get_plan_progress` | `plan` | [Study plan](phase2-page-map.md#study-plan-get_plan_progress) | `{ "completed_hours": 0, "remaining_hours": 0, "remaining_courses": [ { "code": "...", "name": "...", "hours": 3, "group": "...", "level": 0 } ] }` |
+| `get_plan_progress` | `plan` | [Study plan](phase2-page-map.md#study-plan-get_plan_progress) | `{ "completed_hours": 0, "remaining_hours": 0, "remaining_courses": [ { "code": "...", "name": "...", "hours": 3, "group": "...", "level": "..." } ] }` |
 | `get_courses` | `lms` | [LMS course list](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "code": "..." } ] }` — `code` may be `null` |
 | `get_assignments` | `lms` | [LMS due dates](phase2-page-map.md#lms-blackboard-ultra) | `{ "items": [ { "title": "...", "course": "...", "due_at": "2026-11-21T23:59:00+03:00" } ] }` |
 
@@ -112,8 +112,10 @@ extension stored.
 
 Reading rules:
 
-- `days` uses `1` = Sunday … `7` = Saturday. **Still to be confirmed on a real Edugate
-  page** (the page map says the number-to-day mapping must be verified before release).
+- `days` uses `1` = Sunday … `7` = Saturday. Edugate uses 1–5 (Sunday–Thursday); 6 and 7
+  are allowed so other sources fit the same format. **Still to be confirmed on a real
+  Edugate page** (the page map says the number-to-day mapping must be verified before
+  release).
 - Numbers that Edugate shows as text stay strings (`cumulative_gpa`, `scale`); counts,
   hours and percentages are numbers.
 - `due_at` is an ISO 8601 timestamp with the KSU offset (`+03:00`).
