@@ -128,6 +128,11 @@ export type Dictionary = {
       note: string;
       suggestions: [string, string, string, string];
     };
+    extension: {
+      install: string;
+      installNote: string;
+      connected: string;
+    };
   };
   footer: {
     project: string;
@@ -293,6 +298,12 @@ const ar: Dictionary = {
         "كيف أعتذر عن مقرر أو عن فصل دراسي؟",
         "كيف يُحسب المعدل التراكمي؟",
       ],
+    },
+    extension: {
+      install: "اربط حسابك في Edugate وLMS — ثبّت إضافة KSU Agent",
+      installNote:
+        "لا نطلب كلمة مرور الجامعة أبدًا؛ تُقرأ الصفحات في متصفحك وبعد موافقتك فقط.",
+      connected: "الإضافة متصلة (الإصدار {version})",
     },
   },
   footer: {
@@ -460,6 +471,12 @@ const en: Dictionary = {
         "How do I withdraw from a course or a semester?",
         "How is the cumulative GPA calculated?",
       ],
+    },
+    extension: {
+      install: "Connect Edugate & LMS — install the KSU Agent extension",
+      installNote:
+        "We never ask for your KSU password. Pages are read in your browser, only after you allow it.",
+      connected: "Extension connected (version {version})",
     },
   },
   footer: {
