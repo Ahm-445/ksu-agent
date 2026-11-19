@@ -31,6 +31,14 @@ _ARABIC_OWN_GPA = re.compile(r"معدل(?:ي|نا)(?![\u0621-\u064a])")
 # "my gpa", "my cumulative gpa", "what is my gpa".
 _ENGLISH_OWN_GPA = re.compile(r"\bmy\s+(?:cumulative\s+)?gpa\b")
 
+# "درجاتي" / "درجاتنا" and "درجات المواد": the student's own course results.
+_ARABIC_OWN_GRADES = re.compile(
+    r"درجات(?:ي|نا)(?![\u0621-\u064a])|درجات\s+المواد"
+)
+
+# "my grades", "my course grades".
+_ENGLISH_OWN_GRADES = re.compile(r"\bmy\s+(?:course\s+)?grades\b")
+
 # "جدولي" / "جدولنا": the student's own timetable.
 _ARABIC_OWN_SCHEDULE = re.compile(r"جدول(?:ي|نا)(?![\u0621-\u064a])")
 
@@ -72,6 +80,9 @@ def detect_personal_tool(message: str) -> str | None:
 
     if _ARABIC_OWN_GPA.search(text) or _ENGLISH_OWN_GPA.search(text):
         return "get_gpa"
+
+    if _ARABIC_OWN_GRADES.search(text) or _ENGLISH_OWN_GRADES.search(text):
+        return "get_grades"
 
     if _ARABIC_OWN_SCHEDULE.search(text) or _ENGLISH_OWN_SCHEDULE.search(text):
         return "get_schedule"

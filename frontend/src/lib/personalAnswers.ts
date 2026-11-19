@@ -3,6 +3,7 @@ import {
   categoryOfTool,
   type AbsencesData,
   type FinalExamsData,
+  type GradesData,
   type GpaData,
   type ScheduleData,
   type ToolData,
@@ -49,6 +50,26 @@ const FINAL_EXAMS_TEMPLATES: Record<
     noDay: "day not announced yet",
     noDate: "date not announced yet",
     noPlace: "location not announced yet",
+  },
+};
+
+const GRADES_TEMPLATES: Record<
+  Lang,
+  { intro: string; course: string; none: string; notRecorded: string; unrecorded: string }
+> = {
+  ar: {
+    intro: "درجاتك في {term} حسب Edugate:",
+    course: "{name} ({code}): {grade}",
+    none: "لا توجد مقررات مسجلة في {term}.",
+    notRecorded: "لم تُرصد بعد",
+    unrecorded: "درجات {term} لم تُرصد بعد في Edugate.",
+  },
+  en: {
+    intro: "Your grades for {term} from Edugate:",
+    course: "{name} ({code}): {grade}",
+    none: "No courses are recorded for {term}.",
+    notRecorded: "not recorded yet",
+    unrecorded: "Grades for {term} are not recorded yet in Edugate.",
   },
 };
 
@@ -145,6 +166,31 @@ export function finalExamsAnswer(data: FinalExamsData, lang: Lang): string {
   );
 }
 
+/** The grades answer: one line per course, and the all-unrecorded case. */
+export function gradesAnswer(data: GradesData, lang: Lang): string {
+  const templates = GRADES_TEMPLATES[lang];
+
+  if (data.courses.length === 0) {
+    return fill(templates.none, { term: data.term });
+  }
+
+  if (data.courses.every((course) => course.grade === null)) {
+    return fill(templates.unrecorded, { term: data.term });
+  }
+
+  return sentence(
+    fill(templates.intro, { term: data.term }),
+    data.courses.map((course) =>
+      fill(templates.course, {
+        name: course.name,
+        code: course.code,
+        grade: course.grade ?? templates.notRecorded,
+      }),
+    ),
+    lang,
+  );
+}
+
 /** The schedule answer, one line per class slot, or the empty case. */
 export function scheduleAnswer(data: ScheduleData, lang: Lang): string {
   const templates = SCHEDULE_TEMPLATES[lang];
@@ -191,6 +237,8 @@ export function personalAnswer(
       return finalExamsAnswer(data as FinalExamsData, lang);
     case "get_schedule":
       return scheduleAnswer(data as ScheduleData, lang);
+    case "get_grades":
+      return gradesAnswer(data as GradesData, lang);
     default:
       return null;
   }

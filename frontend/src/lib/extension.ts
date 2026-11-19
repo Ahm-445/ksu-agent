@@ -193,8 +193,17 @@ export type ScheduleClass = {
 
 export type ScheduleData = { term: string; classes: ScheduleClass[] };
 
+export type GradeCourse = { code: string; name: string; grade: string | null };
+
+export type GradesData = { term: string; courses: GradeCourse[] };
+
 /** The fields of one tool result, from the API contract's tool catalogue. */
-export type ToolData = GpaData | AbsencesData | FinalExamsData | ScheduleData;
+export type ToolData =
+  | GpaData
+  | AbsencesData
+  | FinalExamsData
+  | ScheduleData
+  | GradesData;
 
 export type ToolErrorKind =
   | "not_installed"
@@ -310,12 +319,31 @@ function isScheduleData(value: unknown): value is ScheduleData {
   );
 }
 
+function isGradeCourse(value: unknown): value is GradeCourse {
+  return (
+    isRecord(value) &&
+    typeof value.code === "string" &&
+    typeof value.name === "string" &&
+    (typeof value.grade === "string" || value.grade === null)
+  );
+}
+
+function isGradesData(value: unknown): value is GradesData {
+  return (
+    isRecord(value) &&
+    typeof value.term === "string" &&
+    Array.isArray(value.courses) &&
+    value.courses.every(isGradeCourse)
+  );
+}
+
 /** The guard for the fields each tool returns; a tool without one is unreadable. */
 const TOOL_DATA: Readonly<Record<string, (value: unknown) => boolean>> = {
   get_gpa: isGpaData,
   get_absences: isAbsencesData,
   get_final_exams: isFinalExamsData,
   get_schedule: isScheduleData,
+  get_grades: isGradesData,
 };
 
 function parseToolResult(value: unknown, tool: string): ToolResult | null {

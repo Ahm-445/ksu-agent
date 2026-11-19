@@ -25,6 +25,14 @@ PERSONAL = {
         "what is my gpa",
         "Can you tell me my cumulative GPA?",
     ],
+    "get_grades": [
+        "درجاتي",
+        "وش درجاتي؟",
+        "درجات المواد",
+        "كم جبت في المواد؟ درجات المواد",
+        "my grades",
+        "what are my course grades?",
+    ],
     "get_schedule": [
         "جدولي",
         "وش جدولي هذا الفصل؟",
@@ -87,6 +95,6 @@ def test_an_empty_question_is_not_a_tool():
 
 
 def test_a_question_about_personal_data_without_a_reader_is_not_a_tool_yet():
-    """Grades, schedule, exams and the plan come in the next commits."""
-    assert detect_personal_tool("وش درجاتي؟") is None
-    assert detect_personal_tool("what are my grades?") is None
+    """The study plan comes in the next commit."""
+    assert detect_personal_tool("كم باقي لي ساعات؟") is None
+    assert detect_personal_tool("how many hours do I have left?") is None

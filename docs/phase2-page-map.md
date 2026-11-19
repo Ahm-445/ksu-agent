@@ -39,9 +39,11 @@ from it yet.
 
 ### Course results (`get_grades`)
 
-- Headings: `رمز المقرر`, `اسم المقرر`, `التقدير`.
-- A term selector lists terms in `data-label` attributes (e.g. `الفصل الأول …`,
-  `الفصل الصيفي …`); the table shows the selected term.
+- Table `myForm:courseTable`. Headings: `رمز المقرر`, `اسم المقرر`, `التقدير`.
+- The term selector `myForm:selectSemester` lists every term as an `<option>`, and the
+  page shows the **selected** one. It opens on the current term, where every `التقدير`
+  cell is still empty; `ت` marks a grade that is not recorded. The selector is not
+  submitted in this step, so only the shown term is read.
 
 ### Class schedule (`get_schedule`)
 

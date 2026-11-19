@@ -81,5 +81,17 @@
         "PM"
       ]
     }
+  },
+  "grades": {
+    "tableId": "myForm:courseTable",
+    "termSelectId": "myForm:selectSemester",
+    "headings": {
+      "code": "رمز المقرر",
+      "name": "اسم المقرر",
+      "grade": "التقدير"
+    },
+    "notRecorded": [
+      "ت"
+    ]
   }
 }

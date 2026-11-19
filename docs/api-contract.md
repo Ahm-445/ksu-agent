@@ -97,7 +97,7 @@ for that tool in the [Phase 2 page map](phase2-page-map.md).
 | Tool | Consent category | Source page | Returns exactly |
 | :--- | :--- | :--- | :--- |
 | `get_gpa` | `grades` | [Academic record](phase2-page-map.md#academic-record-get_gpa) | `{ "cumulative_gpa": "4.21", "scale": "5", "earned_hours": 96, "registered_hours": 99, "as_of_term": "الفصل الأول 1448/1449" }` |
-| `get_grades` | `grades` | [Course results](phase2-page-map.md#course-results-get_grades) | `{ "term": "...", "courses": [ { "code": "...", "name": "...", "grade": "..." } ] }` |
+| `get_grades` | `grades` | [Course results](phase2-page-map.md#course-results-get_grades) | `{ "term": "...", "courses": [ { "code": "...", "name": "...", "grade": "..." } ] }` — `grade` may be `null` |
 | `get_lms_grades` | `grades` | [LMS grades](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "grade": "..." } ] }` — `grade` may be `null` |
 | `get_schedule` | `schedule` | [Class schedule](phase2-page-map.md#class-schedule-get_schedule) | `{ "term": "...", "classes": [ { "code": "...", "name": "...", "activity": "...", "section": "...", "days": [1, 3], "start": "08:00", "end": "08:50" } ] }` |
 | `get_final_exams` | `schedule` | [Final exams](phase2-page-map.md#final-exams-get_final_exams) | `{ "exams": [ { "code": "...", "name": "...", "day": "الثلاثاء", "date": "6-07-1448", "time": "08:00", "location": "..." } ] }` — `day`, `date` and `location` may be `null` |
@@ -120,6 +120,10 @@ Reading rules:
   hours and percentages are numbers. The absences page prints `نسبة الغياب` without the
   % sign (`11.86`); the number is returned as shown, between 0 and 100.
 - `due_at` is an ISO 8601 timestamp with the KSU offset (`+03:00`).
+- `get_grades`: the page opens on the current term, where every grade is still empty;
+  `term` is the option the selector shows. An empty grade cell and the not-recorded mark
+  `ت` are both `null`, and the answer says the grades for that term are not recorded yet
+  when all of them are `null`. The selector is never submitted: only the shown term is read.
 - `get_schedule`: the page shows 12-hour times with ص/م; `start` and `end` are converted
   to 24-hour `HH:MM` (`01:00 م` -> `13:00`, `12:00 م` -> `12:00`, `12:05 ص` -> `00:05`).
   One `classes` entry per slot: a course that meets twice is two entries. The lecturer and

@@ -155,6 +155,24 @@ describe("the Edugate content script", () => {
     ]);
   });
 
+  it("fetches the course results page for get_grades", async () => {
+    const sendResponse = vi.fn();
+
+    state.listener?.(
+      { kind: "read", tool: "get_grades" },
+      { id: "extension-id" },
+      sendResponse,
+    );
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "page_unreadable" });
+    });
+
+    expect(state.fetched).toEqual([
+      "https://edugate.ksu.edu.sa/ksu/ui/student/courses_results/index/forwardCoursesResults.faces",
+    ]);
+  });
+
   it("reports not_logged_in when a fetched page is the login form", async () => {
     const sendResponse = vi.fn();
 

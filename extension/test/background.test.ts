@@ -472,6 +472,46 @@ describe("runToolInBrowser", () => {
     });
   });
 
+  it("keeps a null grade and drops a lecturer name from the grades result", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          term: "الفصل الأول 1448/1449",
+          courses: [
+            { code: "SWE 444", name: "هندسة البرمجيات", grade: null, lecturer: "اسم المحاضر" },
+          ],
+        },
+      });
+
+    const result = await runToolInBrowser("get_grades");
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        term: "الفصل الأول 1448/1449",
+        courses: [{ code: "SWE 444", name: "هندسة البرمجيات", grade: null }],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("اسم المحاضر");
+  });
+
+  it("reports page_unreadable when a grade is a number", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          term: "الفصل الأول 1448/1449",
+          courses: [{ code: "SWE 444", name: "هندسة البرمجيات", grade: 95 }],
+        },
+      });
+
+    await expect(runToolInBrowser("get_grades")).resolves.toEqual({
+      ok: false,
+      error: "page_unreadable",
+    });
+  });
+
   it("checks every item of an array against the contract", async () => {
     state.sendMessage = (_tabId, _message, callback) =>
       callback({
