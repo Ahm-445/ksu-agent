@@ -62,6 +62,26 @@ PERSONAL = {
         "كم ساعة باقية على التخرج؟",
         "how many hours left",
     ],
+    "get_courses": [
+        "وش مقرراتي هذا الفصل؟",
+        "مقرراتي",
+        "أبغى أشوف مقرراتنا",
+        "my courses",
+        "what are my lms courses?",
+    ],
+    "get_assignments": [
+        "وش واجباتي؟",
+        "واجباتي القادمة",
+        "متى تسليماتي؟",
+        "my assignments",
+        "what is due this week?",
+    ],
+    "get_lms_grades": [
+        "درجاتي في البلاك بورد",
+        "وش درجاتي في lms؟",
+        "my grades on blackboard",
+        "my lms grades",
+    ],
 }
 
 REGULATION = [
@@ -81,6 +101,9 @@ REGULATION = [
     "what is the cumulative GPA requirement?",
     "when is the final exam?",
     "how many absences are allowed?",
+    "كيف أسجل في المقررات؟",
+    "ما هي سياسة الواجبات؟",
+    "how do I submit an assignment?",
 ]
 
 
@@ -104,6 +127,13 @@ def test_an_empty_question_is_not_a_tool():
 
 def test_a_question_about_the_students_gpa_stays_its_own_tool():
     assert detect_personal_tool("ما معدلي") == "get_gpa"
+
+
+def test_a_question_about_the_students_own_lms_data_is_its_own_tool():
+    """The LMS tools answer from the LMS, not from Edugate."""
+    assert detect_personal_tool("درجاتي في البلاك بورد") == "get_lms_grades"
+    assert detect_personal_tool("my grades on blackboard") == "get_lms_grades"
+    assert detect_personal_tool("درجاتي") == "get_grades"
 
 
 def test_a_question_about_a_programmes_requirement_hours_is_not_a_tool():

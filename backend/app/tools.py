@@ -72,6 +72,39 @@ _ARABIC_OWN_PLAN = re.compile(
     r"|باقي(?:ة|ه)?\s+علي\s+(?:ال)?تخرج"
 )
 
+# "مقرراتي" / "مقرراتنا": the student's own courses this term. The regulation question
+# "كيف أسجل في المقررات؟" is about registering, not about the student's list, so it stays
+# an ordinary answer.
+_ARABIC_OWN_COURSES = re.compile(r"مقررات(?:ي|نا)(?![\u0621-\u064a])")
+
+# "my courses", "my lms courses".
+_ENGLISH_OWN_COURSES = re.compile(r"\bmy\s+(?:lms\s+)?courses\b")
+
+# "واجباتي" / "واجباتنا" / "تسليماتي" and the LMS's own "الواجبات المستحقة": what the
+# student still has to hand in. "ما هي سياسة الواجبات؟" is a regulation question.
+_ARABIC_OWN_ASSIGNMENTS = re.compile(
+    r"واجبات(?:ي|نا)(?![\u0621-\u064a])"
+    r"|تسليمات(?:ي|نا)(?![\u0621-\u064a])"
+    r"|الواجبات\s+المستحق(?:ة|ه)?"
+)
+
+# "my assignments", "my due dates", "what is due this week".
+_ENGLISH_OWN_ASSIGNMENTS = re.compile(
+    r"\bmy\s+(?:lms\s+)?assignments?\b"
+    r"|\bmy\s+due\s+dates?\b"
+    r"|\bwhat\s+is\s+due\b"
+)
+
+# The LMS gradebook, named either as "البلاك بورد" or as "lms". Without that name the
+# question is about the Edugate course results, so "درجاتي" alone stays `get_grades`.
+_ARABIC_LMS_GRADES = re.compile(
+    r"(?:درجات|علامات)(?:ي|نا)[^.?!]{0,20}(?:البلاك\s*بورد|بلاك\s*بورد|lms)"
+)
+_ENGLISH_LMS_GRADES = re.compile(
+    r"\bmy\s+(?:lms|blackboard)\s+grades\b"
+    r"|\bmy\s+grades\s+(?:on|in)\s+(?:the\s+)?(?:lms|blackboard)\b"
+)
+
 # "how many hours left", "how many hours do I have left", "remaining credit hours".
 _ENGLISH_OWN_PLAN = re.compile(
     r"\bhow\s+many\s+hours?\s+(?:do\s+i\s+have\s+)?left\b"
@@ -97,6 +130,11 @@ def detect_personal_tool(message: str) -> str | None:
     if _ARABIC_OWN_GPA.search(text) or _ENGLISH_OWN_GPA.search(text):
         return "get_gpa"
 
+    # Before the Edugate course results: a question that names the LMS is about its
+    # gradebook, and its wording usually carries the same possessive.
+    if _ARABIC_LMS_GRADES.search(text) or _ENGLISH_LMS_GRADES.search(text):
+        return "get_lms_grades"
+
     if _ARABIC_OWN_GRADES.search(text) or _ENGLISH_OWN_GRADES.search(text):
         return "get_grades"
 
@@ -111,5 +149,11 @@ def detect_personal_tool(message: str) -> str | None:
 
     if _ARABIC_OWN_PLAN.search(text) or _ENGLISH_OWN_PLAN.search(text):
         return "get_plan_progress"
+
+    if _ARABIC_OWN_ASSIGNMENTS.search(text) or _ENGLISH_OWN_ASSIGNMENTS.search(text):
+        return "get_assignments"
+
+    if _ARABIC_OWN_COURSES.search(text) or _ENGLISH_OWN_COURSES.search(text):
+        return "get_courses"
 
     return None
