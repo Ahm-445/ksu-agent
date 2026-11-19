@@ -7,6 +7,7 @@
     "build": "rm -rf dist && tsc --noEmit && npm run bundle",
     "bundle": "esbuild src/content/edugate.ts --bundle --format=iife --target=chrome120 --outfile=dist/content/edugate.js && esbuild src/content/lms.ts --bundle --format=iife --target=chrome120 --outfile=dist/content/lms.js && esbuild src/background.ts --bundle --format=esm --target=chrome120 --outfile=dist/background.js && esbuild src/popup.ts --bundle --format=iife --target=chrome120 --outfile=dist/popup.js",
     "test": "vitest run",
+    "build:lms-check": "esbuild test/tools/check_lms_api.ts --bundle --format=iife --target=chrome120 --outfile=dist/lms-check.js",
     "check:real": "esbuild test/tools/check_real_pages.ts --bundle --platform=node --format=esm --packages=external --outfile=build/check-real-pages.mjs && node build/check-real-pages.mjs"
   },
   "devDependencies": {
