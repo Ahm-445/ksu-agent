@@ -1,9 +1,9 @@
 # KSU Agent — Chrome extension
 
-Step 4 of the Phase 2 plan ([ADR 0001](../docs/adr/0001-phase2-data-access.md)): the
-`get_gpa` slice. It answers the website's `ping`, holds the tool catalogue and the
-consent check, and reads the student's cumulative GPA from their own Edugate academic
-record page. The other eight tools still return `page_unreadable`.
+Step 5 of the Phase 2 plan ([ADR 0001](../docs/adr/0001-phase2-data-access.md)): the
+trust features. The popup is the full consent screen — one switch per data category,
+the local activity history and Disconnect — and the service worker records what it read,
+shows a reading badge while a tool runs and clears the badge when it finishes.
 
 TypeScript, Manifest V3. `tsc` type-checks; esbuild bundles `src/` into `dist/`.
 
@@ -59,7 +59,7 @@ packaged and published. The website needs the ID in `NEXT_PUBLIC_EXTENSION_ID`.
 
 | Permission | Why it is needed |
 | :--- | :--- |
-| `storage` | Remembers which data categories the student has allowed, so consent survives a browser restart. It holds category names only, never academic values. |
+| `storage` | Remembers which data categories the student has allowed, and the local activity history: category names, tool names, times and outcomes only, never academic values. Disconnect deletes both. |
 | `host_permissions`: `https://edugate.ksu.edu.sa/*` | Reads the Edugate pages the student is already logged in to, in the student's own session. |
 | `host_permissions`: `https://lms.ksu.edu.sa/*` | Same, for the LMS (Blackboard Ultra) pages. |
 | `externally_connectable`: `http://localhost:3000/*`, `https://ksu-agent-web.onrender.com/*` | Lets the KSU Agent website send messages to the extension. Every other origin is refused, and `sender.origin` is checked on every message. |
@@ -72,9 +72,18 @@ on `https://edugate.ksu.edu.sa/*` only, and the extension declares no
 
 - Answers `{ "kind": "ping" }` from the KSU Agent website with
   `{ "kind": "pong", "version": "0.1.0", "categories_allowed": [] }`.
+- Shows the consent screen: one switch per category (`grades`, `schedule`,
+  `attendance`, `plan`, `lms`), all off until the student turns one on, each with a
+  one-line description in Arabic and English. A change is written to `storage` and added
+  to the history as a `consent` entry.
+- Shows the newest 20 history entries, newest first, as text lines such as
+  `قراءة المعدل — نجحت — 14:05` / `Read GPA — ok — 14:05`. The history holds
+  category names, tool names, times and outcomes only; no value a tool read is stored.
+- Offers Disconnect behind an inline confirmation; confirming removes both stored keys.
 - Answers `{ "kind": "run_tool" }` with `no_consent` until the student allows the
-  category in the popup (one switch, grades only, until the full consent screen of
-  Step 5).
+  category, and records that refusal as a `blocked` entry.
+- Shows the badge `…` while a tool reads and clears it when the read finishes, including
+  on error and on timeout.
 - For an allowed `get_gpa`, asks the open Edugate tab's content script to read the
   academic record page in the student's own session, and returns only the five contract
   fields. No Edugate tab, no content script in it, or a page that does not match the page

@@ -4,7 +4,7 @@
 
 body {
   margin: 0;
-  width: 300px;
+  width: 340px;
   background: #ffffff;
   color: #1b2430;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -42,6 +42,16 @@ h2 {
   color: #5b6b7c;
 }
 
+.sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #5b6b7c;
+}
+
+.section {
+  margin: 0;
+}
+
 .note {
   margin: 8px 0 0;
   font-size: 12px;
@@ -54,18 +64,21 @@ h2 {
   border-top: 1px solid #e2e8f0;
 }
 
-.consent {
+.switches {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.switch {
   display: flex;
   gap: 8px;
   align-items: flex-start;
   margin: 10px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #1b2430;
-  cursor: pointer;
 }
 
-.consent input {
+.switch input {
+  flex: none;
   margin: 2px 0 0;
   width: 14px;
   height: 14px;
@@ -73,7 +86,121 @@ h2 {
   cursor: pointer;
 }
 
-.consent input:focus-visible {
+.switch input:focus-visible {
   outline: 2px solid #0e2a47;
   outline-offset: 2px;
+}
+
+.switch label {
+  display: block;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #1b2430;
+  cursor: pointer;
+}
+
+.switch .name {
+  display: block;
+  font-weight: 600;
+}
+
+.switch .name .en {
+  font-weight: 400;
+  color: #5b6b7c;
+}
+
+.switch .desc {
+  display: block;
+  color: #5b6b7c;
+}
+
+.history {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.history li {
+  padding: 4px 0;
+  border-top: 1px solid #eef2f7;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1b2430;
+}
+
+.history li:first-child {
+  border-top: 0;
+}
+
+.history .en,
+.history-empty .en {
+  display: block;
+  color: #5b6b7c;
+}
+
+.history-empty {
+  color: #5b6b7c;
+}
+
+.button {
+  margin: 8px 0 0;
+  padding: 7px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0e2a47;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: #17a398;
+}
+
+.button:focus-visible {
+  outline: 2px solid #0e2a47;
+  outline-offset: 2px;
+}
+
+.button.danger {
+  border-color: #b42318;
+  color: #b42318;
+}
+
+.button.danger:hover {
+  border-color: #b42318;
+  background: #fef3f2;
+}
+
+.confirm {
+  margin: 8px 0 0;
+  padding: 10px;
+  border: 1px solid #fecdca;
+  border-radius: 8px;
+  background: #fffbfa;
+}
+
+.confirm[hidden] {
+  display: none;
+}
+
+.confirm-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #7a271a;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.confirm-actions .button {
+  margin: 8px 0 0;
 }

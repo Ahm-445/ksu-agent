@@ -1,7 +1,15 @@
 import { handleMessage, type ToolOutcome } from "./handler.js";
-import type { ExtensionResponse, ToolName } from "./protocol.js";
+import {
+  isRecord,
+  isToolName,
+  readRunTool,
+  TOOL_CATEGORIES,
+  type ExtensionResponse,
+  type ToolName,
+} from "./protocol.js";
+import { createStore } from "./storage.js";
 
-const DEFAULT_CATEGORIES: string[] = [];
+const store = createStore(chrome.storage.local);
 
 // The academic record page, from docs/phase2-page-map.md. The content script
 // fetches it in the student's own Edugate session.
@@ -12,24 +20,11 @@ const TOOLS_WITH_READER: readonly ToolName[] = ["get_gpa"];
 
 const READ_TIMEOUT_MS = 20_000;
 
+const READING_BADGE = "…";
+
 type ReadReply =
   | { ok: true; data: Record<string, unknown> }
   | { ok: false; error: string };
-
-async function readCategoriesAllowed(): Promise<string[]> {
-  try {
-    const stored = await chrome.storage.local.get({ categoriesAllowed: [] });
-    const value: unknown = stored.categoriesAllowed;
-
-    if (!Array.isArray(value)) {
-      return DEFAULT_CATEGORIES;
-    }
-
-    return value.filter((entry): entry is string => typeof entry === "string");
-  } catch {
-    return DEFAULT_CATEGORIES;
-  }
-}
 
 function isReadReply(value: unknown): value is ReadReply {
   if (typeof value !== "object" || value === null) {
@@ -169,14 +164,95 @@ export async function runToolInBrowser(tool: ToolName): Promise<ToolOutcome> {
     : { ok: true, data };
 }
 
+/** The badge is a courtesy: a browser that refuses it must not fail a tool run. */
+async function setBadge(text: string): Promise<void> {
+  try {
+    await chrome.action.setBadgeText({ text });
+  } catch {
+    // Nothing to do: the student still gets the answer.
+  }
+}
+
+/**
+ * One history entry per run_tool: what was read or refused, never a value the tool
+ * returned. A failed write must not change the answer either.
+ */
+async function recordActivity(
+  message: unknown,
+  response: ExtensionResponse | null,
+): Promise<void> {
+  if (response === null || response.kind !== "tool_result") {
+    return;
+  }
+
+  if (!isRecord(message) || message.kind !== "run_tool") {
+    return;
+  }
+
+  const fields = readRunTool(message);
+
+  if (!fields || !isToolName(fields.tool)) {
+    return;
+  }
+
+  const tool = fields.tool;
+  const at = new Date().toISOString();
+  const category = TOOL_CATEGORIES[tool];
+
+  if (response.ok) {
+    await store.addActivity({ at, kind: "read", category, tool, outcome: "ok" });
+    return;
+  }
+
+  if (response.error === "no_consent") {
+    await store.addActivity({
+      at,
+      kind: "blocked",
+      category,
+      tool,
+      allowed: false,
+    });
+    return;
+  }
+
+  await store.addActivity({
+    at,
+    kind: "read",
+    category,
+    tool,
+    outcome: response.error,
+  });
+}
+
 export async function respondToMessage(
   message: unknown,
   senderOrigin: string | undefined,
   runTool: (tool: ToolName) => Promise<ToolOutcome> = runToolInBrowser,
 ): Promise<ExtensionResponse | null> {
-  const categoriesAllowed = await readCategoriesAllowed();
+  const categoriesAllowed = await store.getConsent();
 
-  return handleMessage(message, senderOrigin, { categoriesAllowed }, runTool);
+  const response = await handleMessage(
+    message,
+    senderOrigin,
+    { categoriesAllowed },
+    async (tool) => {
+      await setBadge(READING_BADGE);
+
+      try {
+        return await runTool(tool);
+      } finally {
+        await setBadge("");
+      }
+    },
+  );
+
+  try {
+    await recordActivity(message, response);
+  } catch {
+    // The history is best effort; the answer is already on its way.
+  }
+
+  return response;
 }
 
 chrome.runtime.onMessageExternal.addListener(

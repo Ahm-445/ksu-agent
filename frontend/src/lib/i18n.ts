@@ -1,3 +1,5 @@
+import type { Category } from "@/lib/extension";
+
 export type Lang = "ar" | "en";
 
 export type Dictionary = {
@@ -120,11 +122,13 @@ export type Dictionary = {
     disclaimer: string;
     newMessages: string;
     personalNote: string;
+    categories: Record<Category, string>;
     errors: {
       unavailable: string;
       invalid: string;
       extensionMissing: string;
       consentMissing: string;
+      consentMissingFor: string;
       notSignedIn: string;
       readFailed: string;
     };
@@ -137,6 +141,9 @@ export type Dictionary = {
       install: string;
       installNote: string;
       connected: string;
+      allowed: string;
+      separator: string;
+      noneAllowed: string;
     };
   };
   footer: {
@@ -291,11 +298,19 @@ const ar: Dictionary = {
     disclaimer: "قد يخطئ المساعد. تحقق دائمًا من المصدر.",
     newMessages: "رسائل جديدة",
     personalNote: "من حسابك في Edugate — لم يُرسل إلى خادم KSU Agent",
+    categories: {
+      grades: "الدرجات",
+      schedule: "الجدول الدراسي",
+      attendance: "الغياب والتأخير",
+      plan: "الخطة الدراسية",
+      lms: "مقررات LMS",
+    },
     errors: {
       unavailable: "تعذر الاتصال بالخادم، حاول مرة أخرى.",
       invalid: "تعذر معالجة هذه الرسالة. جرّب صياغتها بشكل مختلف.",
       extensionMissing: "ثبّت إضافة KSU Agent لتقرأ معدلك من Edugate.",
-      consentMissing: "افتح الإضافة واسمح بقراءة الدرجات والمعدل.",
+      consentMissing: "افتح الإضافة واسمح بقراءة البيانات التي تحتاجها.",
+      consentMissingFor: "افتح إضافة KSU Agent واسمح بقراءة «{category}».",
       notSignedIn: "افتح Edugate أو أعد تحميل صفحته في هذا المتصفح ثم سجّل الدخول.",
       readFailed: "تعذر قراءة صفحة Edugate، حاول مرة أخرى.",
     },
@@ -314,6 +329,9 @@ const ar: Dictionary = {
       installNote:
         "لا نطلب كلمة مرور الجامعة أبدًا؛ تُقرأ الصفحات في متصفحك وبعد موافقتك فقط.",
       connected: "الإضافة متصلة (الإصدار {version})",
+      allowed: "يمكن للإضافة قراءة:",
+      separator: "، ",
+      noneAllowed: "لم تسمح بقراءة أي بيانات بعد",
     },
   },
   footer: {
@@ -469,11 +487,19 @@ const en: Dictionary = {
     disclaimer: "The assistant can make mistakes. Always check the source.",
     newMessages: "New messages",
     personalNote: "From your Edugate — not sent to KSU Agent's server",
+    categories: {
+      grades: "grades",
+      schedule: "class schedule",
+      attendance: "absence and lateness",
+      plan: "study plan",
+      lms: "LMS courses",
+    },
     errors: {
       unavailable: "Could not reach the server, please try again.",
       invalid: "This message could not be processed. Try rewording it.",
       extensionMissing: "Install the KSU Agent extension to read your GPA from Edugate.",
-      consentMissing: "Open the extension and allow reading grades and GPA.",
+      consentMissing: "Open the extension and allow the data it needs.",
+      consentMissingFor: "Open the KSU Agent extension and allow «{category}».",
       notSignedIn: "Open or reload Edugate in this browser and log in.",
       readFailed: "Could not read your Edugate page, please try again.",
     },
@@ -492,6 +518,9 @@ const en: Dictionary = {
       installNote:
         "We never ask for your KSU password. Pages are read in your browser, only after you allow it.",
       connected: "Extension connected (version {version})",
+      allowed: "The extension can read:",
+      separator: ", ",
+      noneAllowed: "You haven't allowed any data yet",
     },
   },
   footer: {

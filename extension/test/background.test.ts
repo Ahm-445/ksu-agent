@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VERSION } from "../src/config.js";
+import type { ActivityEntry } from "../src/storage.js";
 
 type Listener = (
   message: unknown,
@@ -17,16 +18,20 @@ const state: {
   listener?: Listener;
   stored: unknown;
   storageThrows: boolean;
+  activity: unknown[];
   tabs: Array<{ id?: number }>;
   tabsQueryThrows: boolean;
   sent: Array<{ tabId: number; message: unknown }>;
   sendMessage?: SendMessage;
+  badge: string[];
 } = {
   stored: [],
   storageThrows: false,
+  activity: [],
   tabs: [],
   tabsQueryThrows: false,
   sent: [],
+  badge: [],
 };
 
 const runtime: { lastError?: { message: string } } = {};
@@ -44,13 +49,46 @@ vi.stubGlobal("chrome", {
   },
   storage: {
     local: {
-      get: async () => {
+      get: async (keys: string[]) => {
         if (state.storageThrows) {
           throw new Error("storage unavailable");
         }
 
-        return { categoriesAllowed: state.stored };
+        const stored: Record<string, unknown> = {};
+
+        if (keys.includes("categoriesAllowed")) {
+          stored.categoriesAllowed = state.stored;
+        }
+
+        if (keys.includes("activity")) {
+          stored.activity = state.activity;
+        }
+
+        return stored;
       },
+      set: async (items: Record<string, unknown>) => {
+        if ("categoriesAllowed" in items) {
+          state.stored = items.categoriesAllowed;
+        }
+
+        if ("activity" in items) {
+          state.activity = items.activity as unknown[];
+        }
+      },
+      remove: async (keys: string[]) => {
+        if (keys.includes("categoriesAllowed")) {
+          state.stored = [];
+        }
+
+        if (keys.includes("activity")) {
+          state.activity = [];
+        }
+      },
+    },
+  },
+  action: {
+    setBadgeText: async ({ text }: { text: string }) => {
+      state.badge.push(text);
     },
   },
   tabs: {
@@ -82,6 +120,8 @@ describe("respondToMessage", () => {
   beforeEach(() => {
     state.stored = [];
     state.storageThrows = false;
+    state.activity = [];
+    state.badge = [];
   });
 
   it("reports no consent when nothing is stored", async () => {
@@ -274,5 +314,160 @@ describe("runToolInBrowser", () => {
       error: "page_unreadable",
     });
     expect(state.sent).toEqual([]);
+  });
+});
+
+describe("activity history", () => {
+  const RUN = {
+    kind: "run_tool",
+    request_id: "r-1",
+    tool: "get_gpa",
+    args: {},
+  };
+
+  beforeEach(() => {
+    state.stored = ["grades"];
+    state.activity = [];
+    state.badge = [];
+    state.tabs = [{ id: 7 }];
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({ ok: true, data: GPA });
+  });
+
+  it("records one read entry when the read succeeds", async () => {
+    await respondToMessage(RUN, "http://localhost:3000");
+
+    expect(state.activity).toHaveLength(1);
+    expect(state.activity[0]).toEqual({
+      at: expect.any(String),
+      kind: "read",
+      category: "grades",
+      tool: "get_gpa",
+      outcome: "ok",
+    });
+  });
+
+  it("records the error code when the read fails", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({ ok: false, error: "page_unreadable" });
+
+    await respondToMessage(RUN, "http://localhost:3000");
+
+    expect(state.activity).toEqual([
+      {
+        at: expect.any(String),
+        kind: "read",
+        category: "grades",
+        tool: "get_gpa",
+        outcome: "page_unreadable",
+      },
+    ]);
+  });
+
+  it("records a blocked entry when the category is not allowed", async () => {
+    state.stored = [];
+
+    await respondToMessage(RUN, "http://localhost:3000");
+
+    expect(state.activity).toEqual([
+      {
+        at: expect.any(String),
+        kind: "blocked",
+        category: "grades",
+        tool: "get_gpa",
+        allowed: false,
+      },
+    ]);
+  });
+
+  it("keeps no value the tool read in the entry", async () => {
+    await respondToMessage(RUN, "http://localhost:3000");
+
+    const [entry] = state.activity as ActivityEntry[];
+
+    expect(Object.keys(entry).sort()).toEqual([
+      "at",
+      "category",
+      "kind",
+      "outcome",
+      "tool",
+    ]);
+    expect(JSON.stringify(entry)).not.toContain("4.31");
+  });
+
+  it("records nothing for a ping or a foreign origin", async () => {
+    await respondToMessage({ kind: "ping" }, "http://localhost:3000");
+    await respondToMessage(RUN, "https://evil.example");
+
+    expect(state.activity).toEqual([]);
+  });
+});
+
+describe("the reading badge", () => {
+  const RUN = {
+    kind: "run_tool",
+    request_id: "r-1",
+    tool: "get_gpa",
+    args: {},
+  };
+
+  beforeEach(() => {
+    state.stored = ["grades"];
+    state.activity = [];
+    state.badge = [];
+    state.tabs = [{ id: 7 }];
+  });
+
+  it("shows while a tool reads and clears after it succeeds", async () => {
+    const during: string[][] = [];
+
+    const response = await respondToMessage(
+      RUN,
+      "http://localhost:3000",
+      async () => {
+        during.push([...state.badge]);
+        return { ok: true, data: GPA };
+      },
+    );
+
+    expect(response).toMatchObject({ ok: true });
+    expect(during).toEqual([["…"]]);
+    expect(state.badge).toEqual(["…", ""]);
+  });
+
+  it("clears after an error", async () => {
+    await respondToMessage(RUN, "http://localhost:3000", async () => ({
+      ok: false,
+      error: "page_unreadable",
+    }));
+
+    expect(state.badge).toEqual(["…", ""]);
+  });
+
+  it("clears after a timeout", async () => {
+    vi.useFakeTimers();
+    state.sendMessage = () => {};
+
+    try {
+      const running = respondToMessage(RUN, "http://localhost:3000");
+
+      await vi.advanceTimersByTimeAsync(20_000);
+
+      await expect(running).resolves.toMatchObject({
+        ok: false,
+        error: "timeout",
+      });
+      expect(state.badge).toEqual(["…", ""]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows nothing when there is no consent", async () => {
+    state.stored = [];
+
+    await respondToMessage(RUN, "http://localhost:3000");
+
+    expect(state.badge).toEqual([]);
   });
 });
