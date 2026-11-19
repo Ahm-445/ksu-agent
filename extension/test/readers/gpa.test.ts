@@ -132,9 +132,15 @@ type TermFixture = {
   gpa: string | null;
   /** false when the summary table has no تراكمي row. */
   withCumulative?: boolean;
+  /** The فصلي row's earned hours: 0 for a term with no results yet. */
+  termEarnedHours?: number;
 };
 
-function summaryTable(gpa: string, withCumulative: boolean): string {
+function summaryTable(
+  gpa: string,
+  withCumulative: boolean,
+  termEarnedHours: number,
+): string {
   const cumulative = withCumulative
     ? `<tr><td>تراكمي</td><td>40</td><td>36</td><td>${gpa}</td></tr>`
     : "";
@@ -145,7 +151,7 @@ function summaryTable(gpa: string, withCumulative: boolean): string {
       <th class="HEADING">الساعات المكتسبة</th>
       <th class="HEADING">المعدل</th>
     </tr></thead><tbody>
-      <tr><td>فصلي</td><td>12</td><td>12</td><td>0</td></tr>
+      <tr><td>فصلي</td><td>12</td><td>${termEarnedHours}</td><td>0</td></tr>
       ${cumulative}
     </tbody></table>`;
 }
@@ -153,10 +159,13 @@ function summaryTable(gpa: string, withCumulative: boolean): string {
 function record(terms: TermFixture[]): Document {
   const blocks = terms
     .map(
-      ({ label, gpa, withCumulative = true }, index) =>
+      (
+        { label, gpa, withCumulative = true, termEarnedHours = 12 },
+        index,
+      ) =>
         `<div id="myForm:allTranscriptTable:${index + 1}:default">
           <span class="fontTextWhite">${label}</span>
-          ${gpa === null ? "" : summaryTable(gpa, withCumulative)}
+          ${gpa === null ? "" : summaryTable(gpa, withCumulative, termEarnedHours)}
         </div>`,
     )
     .join("");
@@ -262,6 +271,76 @@ describe("term selection", () => {
     expect(readGpa(doc)).toMatchObject({
       as_of_term: "الفصل الثاني ١٤٤٨/١٤٤٩",
       cumulative_gpa: "4.6",
+    });
+  });
+});
+
+describe("a current term that is not graded yet", () => {
+  const FIRST_1448 = "الفصل الأول 1448/1449";
+  const SUMMER_1447 = "الفصل الصيفي 1447/1448";
+  const SECOND_1447 = "الفصل الثاني 1447/1448";
+  const FIRST_1447 = "الفصل الأول 1447/1448";
+
+  it("takes the newest term whose cumulative GPA is set", () => {
+    const doc = record([
+      { label: FIRST_1448, gpa: "0", termEarnedHours: 0 },
+      { label: SUMMER_1447, gpa: "4.21" },
+      { label: FIRST_1447, gpa: "3.9" },
+    ]);
+
+    expect(readGpa(doc)).toMatchObject({
+      as_of_term: SUMMER_1447,
+      cumulative_gpa: "4.21",
+    });
+  });
+
+  it.each(["0.00", "٠٫٠٠"])("counts %s as a term that is not graded yet", (gpa) => {
+    const doc = record([
+      { label: FIRST_1448, gpa, termEarnedHours: 0 },
+      { label: SECOND_1447, gpa: "4.21" },
+    ]);
+
+    expect(readGpa(doc)).toMatchObject({
+      as_of_term: SECOND_1447,
+      cumulative_gpa: "4.21",
+    });
+  });
+
+  it("skips a term whose cumulative cell is empty", () => {
+    const doc = record([
+      { label: FIRST_1448, gpa: "", termEarnedHours: 0 },
+      { label: SECOND_1447, gpa: "4.21" },
+    ]);
+
+    expect(readGpa(doc)).toMatchObject({
+      as_of_term: SECOND_1447,
+      cumulative_gpa: "4.21",
+    });
+  });
+
+  it("accepts a summer term with no term hours but a cumulative GPA", () => {
+    const doc = record([
+      { label: FIRST_1448, gpa: "0", termEarnedHours: 0 },
+      { label: SUMMER_1447, gpa: "4.10", termEarnedHours: 0 },
+    ]);
+
+    expect(readGpa(doc)).toMatchObject({
+      as_of_term: SUMMER_1447,
+      cumulative_gpa: "4.10",
+      earned_hours: 36,
+      registered_hours: 40,
+    });
+  });
+
+  it("returns the newest term's zero when every term is zero", () => {
+    const doc = record([
+      { label: FIRST_1448, gpa: "0", termEarnedHours: 0 },
+      { label: SECOND_1447, gpa: "0.00" },
+    ]);
+
+    expect(readGpa(doc)).toMatchObject({
+      as_of_term: FIRST_1448,
+      cumulative_gpa: "0",
     });
   });
 });

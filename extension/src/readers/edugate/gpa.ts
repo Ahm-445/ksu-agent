@@ -118,6 +118,15 @@ function isNewer(candidate: TermKey, current: TermKey): boolean {
   );
 }
 
+type TermCandidate = {
+  key: TermKey;
+  term: string;
+  summary: Summary;
+  cells: ArrayLike<Element>;
+  cumulativeGpa: string;
+  cumulativeValue: number | null;
+};
+
 function cumulativeRow(summary: Summary): ArrayLike<Element> | null {
   for (const row of summary.table.querySelectorAll("tbody tr")) {
     const cells = row.querySelectorAll("td");
@@ -131,16 +140,19 @@ function cumulativeRow(summary: Summary): ArrayLike<Element> | null {
 }
 
 /**
- * The cumulative GPA of the newest term on the academic record page, or null.
+ * The cumulative GPA of the newest graded term on the academic record page, or null.
  *
  * The page lists terms newest first on a real record, but the order is not part of the
  * page map, so the term is chosen by its parsed label: highest first year, then semester
- * order. A block without a summary table, or without a تراكمي row in it, cannot supply
- * the numbers, so the newest such block is used instead. A label that cannot be parsed
- * makes the whole page unreadable rather than a guess.
+ * order. The newest term is often the current one, not graded yet, with a تراكمي المعدل of
+ * zero or an empty cell; such a block is skipped so the cumulative GPA comes from the newest
+ * term whose cumulative GPA is set. A block without a summary table, or without a تراكمي row
+ * in it, cannot supply the numbers, so it is skipped too. A label that cannot be parsed makes
+ * the whole page unreadable rather than a guess.
  *
- * Null means the page is not the shape the page map describes — a different table,
- * heading, row or term label — and the caller reports `page_unreadable`.
+ * When every term is zero, the newest term with a تراكمي row is used, so a genuine zero is
+ * still reported. Null means the page is not the shape the page map describes — a different
+ * table, heading, row or term label — and the caller reports `page_unreadable`.
  */
 export function readGpa(doc: Document): GpaData | null {
   const transcript = doc.getElementById(selectors.transcript.tableId);
@@ -149,12 +161,10 @@ export function readGpa(doc: Document): GpaData | null {
     return null;
   }
 
-  let newest: {
-    key: TermKey;
-    term: string;
-    summary: Summary;
-    cells: ArrayLike<Element>;
-  } | null = null;
+  // The newest term with a cumulative GPA actually set, and the newest term that has the
+  // تراكمي row at all, for a record where every term is still zero.
+  let newestSet: TermCandidate | null = null;
+  let newestRow: TermCandidate | null = null;
 
   for (const block of termBlocks(transcript)) {
     const term = textOf(
@@ -173,26 +183,51 @@ export function readGpa(doc: Document): GpaData | null {
       continue;
     }
 
-    if (newest === null || isNewer(key, newest.key)) {
-      newest = { key, term, summary, cells };
+    const cumulativeGpa = asciiNumber(
+      cellText(cells, summary.columns.get(selectors.headings.gpa)),
+    );
+    const candidate: TermCandidate = {
+      key,
+      term,
+      summary,
+      cells,
+      cumulativeGpa,
+      cumulativeValue: NUMBER.test(cumulativeGpa)
+        ? Number(cumulativeGpa)
+        : null,
+    };
+
+    if (newestRow === null || isNewer(key, newestRow.key)) {
+      newestRow = candidate;
+    }
+
+    // An empty cell is not a value, and a zero is a term that has not been graded yet:
+    // neither names the term the cumulative GPA belongs to.
+    if (
+      cumulativeGpa !== "" &&
+      candidate.cumulativeValue !== 0 &&
+      (newestSet === null || isNewer(key, newestSet.key))
+    ) {
+      newestSet = candidate;
     }
   }
 
-  if (newest === null) {
+  const chosen = newestSet ?? newestRow;
+
+  if (chosen === null || chosen.cumulativeValue === null) {
     return null;
   }
 
-  const { term, summary, cells } = newest;
+  const { term, summary, cells, cumulativeGpa } = chosen;
 
-  const cumulativeGpa = asciiNumber(
-    cellText(cells, summary.columns.get(selectors.headings.gpa)),
+  const earnedHours = hours(
+    cellText(cells, summary.columns.get(selectors.headings.earnedHours)),
   );
-  const earnedHours = hours(cellText(cells, summary.columns.get(selectors.headings.earnedHours)));
   const registeredHours = hours(
     cellText(cells, summary.columns.get(selectors.headings.registeredHours)),
   );
 
-  if (!NUMBER.test(cumulativeGpa) || earnedHours === null || registeredHours === null) {
+  if (earnedHours === null || registeredHours === null) {
     return null;
   }
 
