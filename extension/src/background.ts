@@ -21,6 +21,7 @@ const TOOLS_WITH_READER: readonly ToolName[] = [
   "get_gpa",
   "get_absences",
   "get_final_exams",
+  "get_schedule",
 ];
 
 const READ_TIMEOUT_MS = 20_000;

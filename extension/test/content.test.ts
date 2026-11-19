@@ -137,6 +137,24 @@ describe("the Edugate content script", () => {
     ]);
   });
 
+  it("fetches the schedule page for get_schedule", async () => {
+    const sendResponse = vi.fn();
+
+    state.listener?.(
+      { kind: "read", tool: "get_schedule" },
+      { id: "extension-id" },
+      sendResponse,
+    );
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "page_unreadable" });
+    });
+
+    expect(state.fetched).toEqual([
+      "https://edugate.ksu.edu.sa/ksu/ui/student/student_schedule/index/forwardStudentSchedule.faces",
+    ]);
+  });
+
   it("reports not_logged_in when a fetched page is the login form", async () => {
     const sendResponse = vi.fn();
 

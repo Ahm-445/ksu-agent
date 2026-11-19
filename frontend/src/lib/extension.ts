@@ -181,8 +181,20 @@ export type FinalExam = {
 
 export type FinalExamsData = { exams: FinalExam[] };
 
+export type ScheduleClass = {
+  code: string;
+  name: string;
+  activity: string;
+  section: string;
+  days: number[];
+  start: string;
+  end: string;
+};
+
+export type ScheduleData = { term: string; classes: ScheduleClass[] };
+
 /** The fields of one tool result, from the API contract's tool catalogue. */
-export type ToolData = GpaData | AbsencesData | FinalExamsData;
+export type ToolData = GpaData | AbsencesData | FinalExamsData | ScheduleData;
 
 export type ToolErrorKind =
   | "not_installed"
@@ -272,11 +284,38 @@ function isFinalExamsData(value: unknown): value is FinalExamsData {
   return isRecord(value) && Array.isArray(value.exams) && value.exams.every(isFinalExam);
 }
 
+function isScheduleClass(value: unknown): value is ScheduleClass {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.code === "string" &&
+    typeof value.name === "string" &&
+    typeof value.activity === "string" &&
+    typeof value.section === "string" &&
+    Array.isArray(value.days) &&
+    value.days.every((day) => typeof day === "number") &&
+    typeof value.start === "string" &&
+    typeof value.end === "string"
+  );
+}
+
+function isScheduleData(value: unknown): value is ScheduleData {
+  return (
+    isRecord(value) &&
+    typeof value.term === "string" &&
+    Array.isArray(value.classes) &&
+    value.classes.every(isScheduleClass)
+  );
+}
+
 /** The guard for the fields each tool returns; a tool without one is unreadable. */
 const TOOL_DATA: Readonly<Record<string, (value: unknown) => boolean>> = {
   get_gpa: isGpaData,
   get_absences: isAbsencesData,
   get_final_exams: isFinalExamsData,
+  get_schedule: isScheduleData,
 };
 
 function parseToolResult(value: unknown, tool: string): ToolResult | null {

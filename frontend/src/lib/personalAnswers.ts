@@ -4,6 +4,7 @@ import {
   type AbsencesData,
   type FinalExamsData,
   type GpaData,
+  type ScheduleData,
   type ToolData,
   type ToolErrorKind,
 } from "@/lib/extension";
@@ -48,6 +49,32 @@ const FINAL_EXAMS_TEMPLATES: Record<
     noDay: "day not announced yet",
     noDate: "date not announced yet",
     noPlace: "location not announced yet",
+  },
+};
+
+const SCHEDULE_TEMPLATES: Record<
+  Lang,
+  { intro: string; entry: string; none: string; days: string[] }
+> = {
+  ar: {
+    intro: "جدولك الدراسي {term} حسب Edugate:",
+    entry: "{name} ({code}) — {days}، {start}-{end} (شعبة {section})",
+    none: "لا توجد محاضرات مسجلة في جدولك لهذا الفصل.",
+    days: ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"],
+  },
+  en: {
+    intro: "Your {term} schedule from Edugate:",
+    entry: "{name} ({code}) — {days}, {start}-{end} (section {section})",
+    none: "No classes are recorded in your schedule for this term.",
+    days: [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ],
   },
 };
 
@@ -118,6 +145,34 @@ export function finalExamsAnswer(data: FinalExamsData, lang: Lang): string {
   );
 }
 
+/** The schedule answer, one line per class slot, or the empty case. */
+export function scheduleAnswer(data: ScheduleData, lang: Lang): string {
+  const templates = SCHEDULE_TEMPLATES[lang];
+
+  if (data.classes.length === 0) {
+    return templates.none;
+  }
+
+  const intro = fill(templates.intro, { term: data.term });
+
+  return sentence(
+    intro,
+    data.classes.map((entry) =>
+      fill(templates.entry, {
+        name: entry.name,
+        code: entry.code,
+        days: entry.days
+          .map((day) => templates.days[day - 1] ?? String(day))
+          .join(lang === "ar" ? "، " : ", "),
+        start: entry.start,
+        end: entry.end,
+        section: entry.section,
+      }),
+    ),
+    lang,
+  );
+}
+
 /**
  * The answer for one tool result, in the student's language. Null when the tool has no
  * template here, so the caller can report an unreadable page instead.
@@ -134,6 +189,8 @@ export function personalAnswer(
       return absencesAnswer(data as AbsencesData, lang);
     case "get_final_exams":
       return finalExamsAnswer(data as FinalExamsData, lang);
+    case "get_schedule":
+      return scheduleAnswer(data as ScheduleData, lang);
     default:
       return null;
   }

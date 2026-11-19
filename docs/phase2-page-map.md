@@ -45,12 +45,19 @@ from it yet.
 
 ### Class schedule (`get_schedule`)
 
-- Headings: `رمز المقرر`, `اسم المقرر`, `نوع المقرر`, `النشاط`, `الشعبة`, `الساعات`,
-  `اليوم الوقت`, `نوع الشعبة`, `التفاصيل`.
-- `اليوم الوقت` holds **day codes** written as numbers (e.g. `1 3 5`) with times.
-  **To confirm on a real page:** which number is which day (Edugate normally uses
-  1 = Sunday … 5 = Thursday); the contract allows 1–7 (see api-contract.md).
-- The details cell holds the lecturer (`المحاضر :`) — not needed by any tool.
+- Table `myForm:studScheduleTable`. Headings: `رمز المقرر`, `اسم المقرر`, `نوع المقرر`,
+  `النشاط`, `الشعبة`, `الساعات`, `اليوم الوقت`, `نوع الشعبة`, `التفاصيل`. The `اليوم الوقت`
+  heading carries many `&nbsp;` between the two words, so headings are compared after
+  whitespace normalisation.
+- `اليوم الوقت` holds a nested table (`…:dataTb2` and the like) with **one or more slots**;
+  each slot has its own day codes and its own time range. A real row can read
+  `4` `01:00 م - 01:50 م` and `2` `01:00 م - 02:50 م`, which is two classes entries.
+- Day codes are numbers 1–5 on Edugate (1 = Sunday … 5 = Thursday); the contract allows
+  1–7. Times are 12-hour with ص/م and are returned as 24-hour `HH:MM`.
+- Activity rows (تمارين) leave `الساعات` and `نوع الشعبة` empty, and a slot may have no day
+  and no time yet; that slot is skipped.
+- The `التفاصيل` cell holds the lecturer (`المحاضر :`) and the room — **never read**.
+- The term is the one the page's `myForm:selectSemester` shows.
 
 ### Absences (`get_absences`)
 

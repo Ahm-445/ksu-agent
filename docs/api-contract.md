@@ -120,6 +120,10 @@ Reading rules:
   hours and percentages are numbers. The absences page prints `نسبة الغياب` without the
   % sign (`11.86`); the number is returned as shown, between 0 and 100.
 - `due_at` is an ISO 8601 timestamp with the KSU offset (`+03:00`).
+- `get_schedule`: the page shows 12-hour times with ص/م; `start` and `end` are converted
+  to 24-hour `HH:MM` (`01:00 م` -> `13:00`, `12:00 م` -> `12:00`, `12:05 ص` -> `00:05`).
+  One `classes` entry per slot: a course that meets twice is two entries. The lecturer and
+  the room are never read.
 - `get_final_exams`: `day` is the Arabic weekday as shown, `date` the Hijri date as shown
   (`6-07-1448`, never converted), and `time` is 24-hour `HH:MM`. `day` and `date` are
   `null` while the exam is not scheduled yet. `location` joins the non-empty parts of

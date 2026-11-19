@@ -402,6 +402,76 @@ describe("runToolInBrowser", () => {
     });
   });
 
+  it("keeps the schedule contract fields and drops a lecturer name", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          term: "الفصل الأول 1448/1449",
+          classes: [
+            {
+              code: "SWE 444",
+              name: "هندسة البرمجيات",
+              activity: "محاضرة",
+              section: "12345",
+              days: [1, 3],
+              start: "08:00",
+              end: "08:50",
+              lecturer: "اسم المحاضر",
+              room: "A/1",
+            },
+          ],
+        },
+      });
+
+    const result = await runToolInBrowser("get_schedule");
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        term: "الفصل الأول 1448/1449",
+        classes: [
+          {
+            code: "SWE 444",
+            name: "هندسة البرمجيات",
+            activity: "محاضرة",
+            section: "12345",
+            days: [1, 3],
+            start: "08:00",
+            end: "08:50",
+          },
+        ],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("اسم المحاضر");
+  });
+
+  it("reports page_unreadable when a day is not a number", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          term: "الفصل الأول 1448/1449",
+          classes: [
+            {
+              code: "SWE 444",
+              name: "هندسة البرمجيات",
+              activity: "محاضرة",
+              section: "12345",
+              days: ["1", 3],
+              start: "08:00",
+              end: "08:50",
+            },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_schedule")).resolves.toEqual({
+      ok: false,
+      error: "page_unreadable",
+    });
+  });
+
   it("checks every item of an array against the contract", async () => {
     state.sendMessage = (_tabId, _message, callback) =>
       callback({

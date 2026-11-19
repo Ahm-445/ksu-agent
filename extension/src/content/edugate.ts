@@ -10,6 +10,7 @@ import {
   type FinalExamData,
 } from "../readers/edugate/finalExams.js";
 import { isEdugateLoginPage, readGpa, type GpaData } from "../readers/edugate/gpa.js";
+import { readSchedule, type ScheduleData } from "../readers/edugate/schedule.js";
 
 const EDUGATE = "https://edugate.ksu.edu.sa";
 
@@ -25,9 +26,12 @@ const TOOL_PAGES: Readonly<Record<string, readonly string[]>> = {
   get_final_exams: [
     `${EDUGATE}/ksu/ui/student/final_exams/index/forwardFinalExams.faces`,
   ],
+  get_schedule: [
+    `${EDUGATE}/ksu/ui/student/student_schedule/index/forwardStudentSchedule.faces`,
+  ],
 };
 
-type ReadData = GpaData | AbsenceData | FinalExamData;
+type ReadData = GpaData | AbsenceData | FinalExamData | ScheduleData;
 
 type ReadReply =
   | { ok: true; data: ReadData }
@@ -70,6 +74,8 @@ function readFor(tool: string, pages: readonly Document[]): ReadData | null {
       return readAbsences(page);
     case "get_final_exams":
       return readFinalExams(page);
+    case "get_schedule":
+      return readSchedule(page);
     default:
       return null;
   }

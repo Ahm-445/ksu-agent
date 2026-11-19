@@ -31,6 +31,12 @@ _ARABIC_OWN_GPA = re.compile(r"معدل(?:ي|نا)(?![\u0621-\u064a])")
 # "my gpa", "my cumulative gpa", "what is my gpa".
 _ENGLISH_OWN_GPA = re.compile(r"\bmy\s+(?:cumulative\s+)?gpa\b")
 
+# "جدولي" / "جدولنا": the student's own timetable.
+_ARABIC_OWN_SCHEDULE = re.compile(r"جدول(?:ي|نا)(?![\u0621-\u064a])")
+
+# "my schedule", "my class schedule".
+_ENGLISH_OWN_SCHEDULE = re.compile(r"\bmy\s+(?:class\s+)?schedule\b")
+
 # "اختباراتي" / "اختباراتنا" and the colloquial "الفاينل". The regulation question
 # "متى الاختبار النهائي؟" has neither, so it stays an ordinary answer.
 _ARABIC_OWN_FINAL_EXAMS = re.compile(
@@ -66,6 +72,9 @@ def detect_personal_tool(message: str) -> str | None:
 
     if _ARABIC_OWN_GPA.search(text) or _ENGLISH_OWN_GPA.search(text):
         return "get_gpa"
+
+    if _ARABIC_OWN_SCHEDULE.search(text) or _ENGLISH_OWN_SCHEDULE.search(text):
+        return "get_schedule"
 
     if _ARABIC_OWN_FINAL_EXAMS.search(text) or _ENGLISH_OWN_FINAL_EXAMS.search(text):
         return "get_final_exams"

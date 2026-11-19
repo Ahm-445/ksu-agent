@@ -17,7 +17,11 @@
     "cumulative": "تراكمي"
   },
   "termLabel": {
-    "semesters": ["الأول", "الثاني", "الصيفي"],
+    "semesters": [
+      "الأول",
+      "الثاني",
+      "الصيفي"
+    ],
     "pattern": "الفصل\\s+(?<semester>{semesters})\\s+(?<year>[0-9]{4})/[0-9]{4}"
   },
   "login": {
@@ -44,9 +48,38 @@
       "date": "تاريخ الاختبار"
     },
     "locationHeading": "مكان الاختبار",
-    "locationParts": ["الوحدة", "المبنى", "الطابق", "الجناح", "القاعة"],
+    "locationParts": [
+      "الوحدة",
+      "المبنى",
+      "الطابق",
+      "الجناح",
+      "القاعة"
+    ],
     "roomTableIdSuffix": ":roomTable",
     "emptyPart": "---",
     "locationSeparator": " - "
+  },
+  "schedule": {
+    "tableId": "myForm:studScheduleTable",
+    "termSelectId": "myForm:selectSemester",
+    "headings": {
+      "code": "رمز المقرر",
+      "name": "اسم المقرر",
+      "activity": "النشاط",
+      "section": "الشعبة",
+      "dayTime": "اليوم الوقت",
+      "sectionType": "نوع الشعبة",
+      "details": "التفاصيل"
+    },
+    "periods": {
+      "am": [
+        "ص",
+        "AM"
+      ],
+      "pm": [
+        "م",
+        "PM"
+      ]
+    }
   }
 }
