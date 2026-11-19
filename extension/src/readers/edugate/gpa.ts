@@ -15,6 +15,14 @@ const DECIMAL_SEPARATORS = /[\u066b,]/g;
 
 const NUMBER = /^\d+(?:\.\d+)?$/;
 
+// The term words and the label shape live in selectors.json; only the joining happens here.
+const TERM_LABEL = new RegExp(
+  selectors.termLabel.pattern.replace(
+    "{semesters}",
+    selectors.termLabel.semesters.join("|"),
+  ),
+);
+
 function textOf(node: Element | null): string {
   return (node?.textContent ?? "").replace(/\s+/g, " ").trim();
 }
@@ -83,6 +91,42 @@ function termBlocks(transcript: Element): Element[] {
   return Array.from(transcript.querySelectorAll(selector));
 }
 
+type TermKey = { year: number; order: number };
+
+/**
+ * The sort key of a term label: its first year and the semester's order. Null when the
+ * label is not the shape the page map describes, so the caller never guesses a term.
+ */
+function parseTermLabel(label: string): TermKey | null {
+  const match = TERM_LABEL.exec(asciiDigits(label));
+  const semester = match?.groups?.semester;
+  const year = match?.groups?.year;
+
+  if (semester === undefined || year === undefined) {
+    return null;
+  }
+
+  const order = selectors.termLabel.semesters.indexOf(semester);
+
+  return order === -1 ? null : { year: Number(year), order: order + 1 };
+}
+
+function isNewer(candidate: TermKey, current: TermKey): boolean {
+  return (
+    candidate.year > current.year ||
+    (candidate.year === current.year && candidate.order > current.order)
+  );
+}
+
+type TermCandidate = {
+  key: TermKey;
+  term: string;
+  summary: Summary;
+  cells: ArrayLike<Element>;
+  cumulativeGpa: string;
+  cumulativeValue: number | null;
+};
+
 function cumulativeRow(summary: Summary): ArrayLike<Element> | null {
   for (const row of summary.table.querySelectorAll("tbody tr")) {
     const cells = row.querySelectorAll("td");
@@ -96,10 +140,19 @@ function cumulativeRow(summary: Summary): ArrayLike<Element> | null {
 }
 
 /**
- * The cumulative GPA of the latest term on the academic record page, or null.
+ * The cumulative GPA of the newest graded term on the academic record page, or null.
  *
- * Null means the page is not the shape the page map describes — a different table,
- * heading or row — and the caller reports `page_unreadable` instead of guessing.
+ * The page lists terms newest first on a real record, but the order is not part of the
+ * page map, so the term is chosen by its parsed label: highest first year, then semester
+ * order. The newest term is often the current one, not graded yet, with a تراكمي المعدل of
+ * zero or an empty cell; such a block is skipped so the cumulative GPA comes from the newest
+ * term whose cumulative GPA is set. A block without a summary table, or without a تراكمي row
+ * in it, cannot supply the numbers, so it is skipped too. A label that cannot be parsed makes
+ * the whole page unreadable rather than a guess.
+ *
+ * When every term is zero, the newest term with a تراكمي row is used, so a genuine zero is
+ * still reported. Null means the page is not the shape the page map describes — a different
+ * table, heading, row or term label — and the caller reports `page_unreadable`.
  */
 export function readGpa(doc: Document): GpaData | null {
   const transcript = doc.getElementById(selectors.transcript.tableId);
@@ -108,42 +161,73 @@ export function readGpa(doc: Document): GpaData | null {
     return null;
   }
 
-  const blocks = termBlocks(transcript);
-  const block = blocks[blocks.length - 1];
+  // The newest term with a cumulative GPA actually set, and the newest term that has the
+  // تراكمي row at all, for a record where every term is still zero.
+  let newestSet: TermCandidate | null = null;
+  let newestRow: TermCandidate | null = null;
 
-  if (block === undefined) {
+  for (const block of termBlocks(transcript)) {
+    const term = textOf(
+      block.querySelector(`.${selectors.transcript.termLabelClass}`),
+    );
+    const key = parseTermLabel(term);
+
+    if (key === null) {
+      return null;
+    }
+
+    const summary = summaryTable(block);
+    const cells = summary === null ? null : cumulativeRow(summary);
+
+    if (summary === null || cells === null) {
+      continue;
+    }
+
+    const cumulativeGpa = asciiNumber(
+      cellText(cells, summary.columns.get(selectors.headings.gpa)),
+    );
+    const candidate: TermCandidate = {
+      key,
+      term,
+      summary,
+      cells,
+      cumulativeGpa,
+      cumulativeValue: NUMBER.test(cumulativeGpa)
+        ? Number(cumulativeGpa)
+        : null,
+    };
+
+    if (newestRow === null || isNewer(key, newestRow.key)) {
+      newestRow = candidate;
+    }
+
+    // An empty cell is not a value, and a zero is a term that has not been graded yet:
+    // neither names the term the cumulative GPA belongs to.
+    if (
+      cumulativeGpa !== "" &&
+      candidate.cumulativeValue !== 0 &&
+      (newestSet === null || isNewer(key, newestSet.key))
+    ) {
+      newestSet = candidate;
+    }
+  }
+
+  const chosen = newestSet ?? newestRow;
+
+  if (chosen === null || chosen.cumulativeValue === null) {
     return null;
   }
 
-  const term = textOf(
-    block.querySelector(`.${selectors.transcript.termLabelClass}`),
+  const { term, summary, cells, cumulativeGpa } = chosen;
+
+  const earnedHours = hours(
+    cellText(cells, summary.columns.get(selectors.headings.earnedHours)),
   );
-
-  if (!term) {
-    return null;
-  }
-
-  const summary = summaryTable(block);
-
-  if (summary === null) {
-    return null;
-  }
-
-  const cells = cumulativeRow(summary);
-
-  if (cells === null) {
-    return null;
-  }
-
-  const cumulativeGpa = asciiNumber(
-    cellText(cells, summary.columns.get(selectors.headings.gpa)),
-  );
-  const earnedHours = hours(cellText(cells, summary.columns.get(selectors.headings.earnedHours)));
   const registeredHours = hours(
     cellText(cells, summary.columns.get(selectors.headings.registeredHours)),
   );
 
-  if (!NUMBER.test(cumulativeGpa) || earnedHours === null || registeredHours === null) {
+  if (earnedHours === null || registeredHours === null) {
     return null;
   }
 
