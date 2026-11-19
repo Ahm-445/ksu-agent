@@ -1,0 +1,57 @@
+{
+  "results": [
+    {
+      "id": "_1001_1",
+      "calendarId": "_999_1_1",
+      "title": "Project proposal",
+      "description": "Submit the proposal as a PDF.",
+      "start": "2026-11-21T20:59:00.000Z",
+      "end": "2026-11-21T20:59:00.000Z",
+      "color": "#FF0000",
+      "calendarName": "Software Engineering Project"
+    },
+    {
+      "id": "_1002_1",
+      "calendarId": "_999_2_1",
+      "title": "Sprint review",
+      "description": "Present the sprint board.",
+      "start": "2026-11-23T06:30:00.000Z",
+      "end": "2026-11-23T06:30:00.000Z",
+      "color": "#FF0000",
+      "calendarName": "Software Engineering Project"
+    },
+    {
+      "id": "_1003_1",
+      "calendarId": "_996_1_1",
+      "title": "Essay draft",
+      "description": "A draft of 900 words.",
+      "start": "2026-11-20T20:59:00.000Z",
+      "end": "2026-11-20T20:59:00.000Z",
+      "color": "#0000FF",
+      "calendarName": "Technical Writing"
+    },
+    {
+      "id": "_1004_1",
+      "calendarId": "_999_3_1",
+      "title": "Section quiz",
+      "description": "Twenty minutes, in the lab.",
+      "start": "2026-11-25T10:00:00.000Z",
+      "end": "2026-11-25T10:00:00.000Z",
+      "color": "#FF0000",
+      "calendarName": "Software Engineering Project"
+    },
+    {
+      "id": "_1005_1",
+      "calendarId": "_111_1_1",
+      "title": "Past course quiz",
+      "description": "From a course of an earlier term.",
+      "start": "2026-11-22T10:00:00.000Z",
+      "end": "2026-11-22T10:00:00.000Z",
+      "color": "#00AA00",
+      "calendarName": "Calculus II"
+    }
+  ],
+  "paging": {
+    "nextPage": null
+  }
+}

@@ -95,6 +95,16 @@ const LMS_COURSES: Fields = {
   },
 };
 
+const LMS_ASSIGNMENTS: Fields = {
+  items: {
+    array: {
+      title: "string",
+      course: "string",
+      due_at: "string",
+    },
+  },
+};
+
 /** Every tool with a page reader, and the contract fields that tool returns. */
 export const TOOL_SCHEMAS: Readonly<Partial<Record<ToolName, Fields>>> = {
   get_gpa: GPA,
@@ -104,6 +114,7 @@ export const TOOL_SCHEMAS: Readonly<Partial<Record<ToolName, Fields>>> = {
   get_grades: GRADES,
   get_plan_progress: PLAN_PROGRESS,
   get_courses: LMS_COURSES,
+  get_assignments: LMS_ASSIGNMENTS,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

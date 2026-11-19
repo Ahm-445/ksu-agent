@@ -349,6 +349,39 @@ describe("runToolInBrowser", () => {
     expect(state.sent).toEqual([]);
   });
 
+  it("keeps only the assignment contract fields", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          items: [
+            {
+              title: "Project proposal",
+              course: "Software Engineering Project",
+              due_at: "2026-11-21T23:59:00+03:00",
+              description: "Submit the proposal as a PDF.",
+              calendarId: "_999_1_1",
+            },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_assignments")).resolves.toEqual({
+      ok: true,
+      data: {
+        items: [
+          {
+            title: "Project proposal",
+            course: "Software Engineering Project",
+            due_at: "2026-11-21T23:59:00+03:00",
+          },
+        ],
+      },
+    });
+
+    expect(state.queries).toEqual([{ url: "https://lms.ksu.edu.sa/*" }]);
+  });
+
   it("keeps only the course contract fields and the membership ids out", async () => {
     state.sendMessage = (_tabId, _message, callback) =>
       callback({

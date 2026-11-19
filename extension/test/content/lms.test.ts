@@ -15,6 +15,7 @@ const LMS = "https://lms.ksu.edu.sa";
 const ME_URL = `${LMS}/learn/api/v1/users/me`;
 const MEMBERSHIPS_URL = `${LMS}/learn/api/v1/users/_999_0/memberships?expand=course&includeCount=true&limit=100`;
 const MEMBERSHIPS_PAGE_2 = `${MEMBERSHIPS_URL}&offset=100`;
+const DUE_DATES_URL = `${LMS}/learn/api/v1/calendars/dueDateCalendarItems`;
 
 // jsdom gives no file URL for this module, so the fixtures folder is taken from the run.
 const FIXTURES = join(process.cwd(), "test", "fixtures", "lms-api");
@@ -115,6 +116,7 @@ describe("the LMS content script", () => {
     state.replies = {
       [ME_URL]: json(JSON.parse(fixture("me.json"))),
       [MEMBERSHIPS_URL]: json(JSON.parse(fixture("memberships.json"))),
+      [DUE_DATES_URL]: json(JSON.parse(fixture("due-dates.json"))),
     };
     state.fetched = [];
     state.calls = [];
@@ -255,6 +257,65 @@ describe("the LMS content script", () => {
 
     expect(state.fetched).toEqual([ME_URL, MEMBERSHIPS_URL]);
     expect(replyOf(sendResponse)).toMatchObject({ ok: true });
+  });
+
+  it("reads the due dates of the current courses", async () => {
+    const sendResponse = read("get_assignments");
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+
+    expect(state.fetched).toEqual([ME_URL, MEMBERSHIPS_URL, DUE_DATES_URL]);
+    expect(replyOf(sendResponse)).toEqual({
+      ok: true,
+      data: {
+        items: [
+          {
+            title: "Essay draft",
+            course: "Technical Writing",
+            due_at: "2026-11-20T23:59:00+03:00",
+          },
+          {
+            title: "Project proposal",
+            course: "Software Engineering Project",
+            due_at: "2026-11-21T23:59:00+03:00",
+          },
+          {
+            title: "Sprint review",
+            course: "Software Engineering Project",
+            due_at: "2026-11-23T09:30:00+03:00",
+          },
+          {
+            title: "Section quiz",
+            course: "Software Engineering Project",
+            due_at: "2026-11-25T13:00:00+03:00",
+          },
+        ],
+      },
+    });
+  });
+
+  it("reports not_logged_in for the due dates when the session is refused", async () => {
+    state.replies[DUE_DATES_URL] = { status: 403, type: "application/json", body: "" };
+    const sendResponse = read("get_assignments");
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "not_logged_in" });
+    });
+  });
+
+  it("reports page_unreadable when a due date is missing", async () => {
+    const items = JSON.parse(fixture("due-dates.json"));
+
+    delete items.results[0].start;
+    state.replies[DUE_DATES_URL] = json(items);
+
+    const sendResponse = read("get_assignments");
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "page_unreadable" });
+    });
   });
 
   it("reports page_unreadable for a tool it does not read", async () => {

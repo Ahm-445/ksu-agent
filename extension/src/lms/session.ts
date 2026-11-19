@@ -16,6 +16,7 @@ import {
   isRecord,
   type LmsCourse,
 } from "../readers/lms/ultra.js";
+import { readDueDates } from "../readers/lms/due-dates.js";
 
 export type LmsReply =
   | { ok: true; data: Record<string, unknown> }
@@ -31,8 +32,8 @@ type Fetched =
 // answers with an error code instead of being cut off with no reply.
 const BUDGET_MS = 19_000;
 
-// The membership list is followed through paging.nextPage, and never past these pages.
-const MEMBERSHIP_PAGES = 5;
+// A list answer is followed through paging.nextPage, and never past these pages.
+const LIST_PAGES = 5;
 
 function failed(error: Failure["error"]): Failure {
   return { error };
@@ -143,19 +144,13 @@ async function signedInId(deadline: number): Promise<string | Failure> {
   return id === null ? failed("page_unreadable") : id;
 }
 
-/** The student's memberships, through paging.nextPage and never past MEMBERSHIP_PAGES. */
-async function memberships(
-  userId: string,
-  deadline: number,
-): Promise<unknown[] | Failure> {
-  const memberships: unknown[] = [];
-  let path: string | null = `${selectors.lms.memberships.replace(
-    "{id}",
-    encodeURIComponent(userId),
-  )}?expand=course&includeCount=true&limit=100`;
+/** Every page of one list answer, through paging.nextPage and never past LIST_PAGES. */
+async function paged(path: string, deadline: number): Promise<unknown[] | Failure> {
+  const items: unknown[] = [];
+  let next: string | null = path;
 
-  for (let page = 0; page < MEMBERSHIP_PAGES && path !== null; page += 1) {
-    const answer = await getJson(path, deadline);
+  for (let page = 0; page < LIST_PAGES && next !== null; page += 1) {
+    const answer = await getJson(next, deadline);
 
     if (answer.kind === "failed") {
       return answer;
@@ -167,11 +162,21 @@ async function memberships(
       return failed("page_unreadable");
     }
 
-    memberships.push(...results);
-    path = nextPageOf(answer.value);
+    items.push(...results);
+    next = nextPageOf(answer.value);
   }
 
-  return memberships;
+  return items;
+}
+
+/** The student's memberships, with the course of each one. */
+function memberships(userId: string, deadline: number): Promise<unknown[] | Failure> {
+  const path = `${selectors.lms.memberships.replace(
+    "{id}",
+    encodeURIComponent(userId),
+  )}?expand=course&includeCount=true&limit=100`;
+
+  return paged(path, deadline);
 }
 
 /** The courses of the current term, or why they could not be read. */
@@ -205,6 +210,26 @@ export async function readLmsTool(tool: string): Promise<LmsReply> {
     }
 
     return { ok: true, data: { courses: coursesData(courses).courses } };
+  }
+
+  if (tool === "get_assignments") {
+    const courses = await currentCourses(deadline);
+
+    if (!Array.isArray(courses)) {
+      return { ok: false, error: courses.error };
+    }
+
+    const items = await paged(selectors.lms.dueDates, deadline);
+
+    if (!Array.isArray(items)) {
+      return { ok: false, error: items.error };
+    }
+
+    const due = readDueDates(items, courses);
+
+    return due === null
+      ? { ok: false, error: "page_unreadable" }
+      : { ok: true, data: { items: due.items } };
   }
 
   return { ok: false, error: "page_unreadable" };
