@@ -93,5 +93,25 @@
     "notRecorded": [
       "ت"
     ]
+  },
+  "plan": {
+    "completedTableId": "myForm:takenPlanTable",
+    "remainingTableId": "myForm:remainPlanTable",
+    "groupHeaderIdSuffix": ":headerArray",
+    "dataTableClass": "responsiveDataTable",
+    "headings": {
+      "code": "رمز المقرر",
+      "name": "اسم المقرر",
+      "hours": "الساعات",
+      "type": "نوع المجموعة",
+      "level": "المستوى"
+    },
+    "groupHoursLabel": "عدد الساعات",
+    "groupHoursPattern": "\\(([0-9]+)\\)\\s*$",
+    "groupSeparators": "-–:",
+    "mandatoryTypes": [
+      "إجباري",
+      "اجباري"
+    ]
   }
 }

@@ -56,6 +56,12 @@ PERSONAL = {
         "my absences",
         "what is my absence percentage?",
     ],
+    "get_plan_progress": [
+        "كم باقي لي ساعات؟",
+        "المقررات المتبقية",
+        "كم ساعة باقية على التخرج؟",
+        "how many hours left",
+    ],
 }
 
 REGULATION = [
@@ -68,6 +74,8 @@ REGULATION = [
     "ما هي شروط التخرج؟",
     "ما شروط الحرمان؟",
     "كم نسبة الغياب المسموحة؟",
+    "ما هي متطلبات الجامعة؟",
+    "كم ساعة يحتاج التخرج في هندسة البرمجيات؟",
     "how is the GPA calculated?",
     "what is the minimum GPA to graduate?",
     "what is the cumulative GPA requirement?",
@@ -94,7 +102,11 @@ def test_an_empty_question_is_not_a_tool():
     assert detect_personal_tool("   ") is None
 
 
-def test_a_question_about_personal_data_without_a_reader_is_not_a_tool_yet():
-    """The study plan comes in the next commit."""
-    assert detect_personal_tool("كم باقي لي ساعات؟") is None
-    assert detect_personal_tool("how many hours do I have left?") is None
+def test_a_question_about_the_students_gpa_stays_its_own_tool():
+    assert detect_personal_tool("ما معدلي") == "get_gpa"
+
+
+def test_a_question_about_a_programmes_requirement_hours_is_not_a_tool():
+    """The requirement hours of a programme are regulation, not the student's progress."""
+    assert detect_personal_tool("ما هي متطلبات الجامعة؟") is None
+    assert detect_personal_tool("كم ساعة يحتاج التخرج في هندسة البرمجيات؟") is None

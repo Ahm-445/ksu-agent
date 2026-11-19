@@ -196,6 +196,20 @@ export type ScheduleData = { term: string; classes: ScheduleClass[] };
 export type GradeCourse = { code: string; name: string; grade: string | null };
 
 export type GradesData = { term: string; courses: GradeCourse[] };
+export type RemainingCourse = {
+  code: string;
+  name: string;
+  hours: number;
+  group: string;
+  type: string;
+  level: string;
+};
+
+export type PlanProgressData = {
+  completed_hours: number;
+  remaining_hours: number;
+  remaining_courses: RemainingCourse[];
+};
 
 /** The fields of one tool result, from the API contract's tool catalogue. */
 export type ToolData =
@@ -203,7 +217,8 @@ export type ToolData =
   | AbsencesData
   | FinalExamsData
   | ScheduleData
-  | GradesData;
+  | GradesData
+  | PlanProgressData;
 
 export type ToolErrorKind =
   | "not_installed"
@@ -337,6 +352,28 @@ function isGradesData(value: unknown): value is GradesData {
   );
 }
 
+function isRemainingCourse(value: unknown): value is RemainingCourse {
+  return (
+    isRecord(value) &&
+    typeof value.code === "string" &&
+    typeof value.name === "string" &&
+    typeof value.hours === "number" &&
+    typeof value.group === "string" &&
+    typeof value.type === "string" &&
+    typeof value.level === "string"
+  );
+}
+
+function isPlanProgressData(value: unknown): value is PlanProgressData {
+  return (
+    isRecord(value) &&
+    typeof value.completed_hours === "number" &&
+    typeof value.remaining_hours === "number" &&
+    Array.isArray(value.remaining_courses) &&
+    value.remaining_courses.every(isRemainingCourse)
+  );
+}
+
 /** The guard for the fields each tool returns; a tool without one is unreadable. */
 const TOOL_DATA: Readonly<Record<string, (value: unknown) => boolean>> = {
   get_gpa: isGpaData,
@@ -344,6 +381,7 @@ const TOOL_DATA: Readonly<Record<string, (value: unknown) => boolean>> = {
   get_final_exams: isFinalExamsData,
   get_schedule: isScheduleData,
   get_grades: isGradesData,
+  get_plan_progress: isPlanProgressData,
 };
 
 function parseToolResult(value: unknown, tool: string): ToolResult | null {

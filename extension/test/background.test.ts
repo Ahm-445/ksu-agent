@@ -512,6 +512,50 @@ describe("runToolInBrowser", () => {
     });
   });
 
+  it("keeps the plan progress contract fields and drops an extra key", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          completed_hours: 107,
+          remaining_hours: 45,
+          remaining_courses: [
+            {
+              code: "SWE 444",
+              name: "هندسة البرمجيات",
+              hours: 3,
+              group: "متطلبات الجامعة",
+              type: "إجباري",
+              level: "الأول",
+              lecturer: "اسم المحاضر",
+            },
+          ],
+          student_name: "طالب",
+        },
+      });
+
+    const result = await runToolInBrowser("get_plan_progress");
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        completed_hours: 107,
+        remaining_hours: 45,
+        remaining_courses: [
+          {
+            code: "SWE 444",
+            name: "هندسة البرمجيات",
+            hours: 3,
+            group: "متطلبات الجامعة",
+            type: "إجباري",
+            level: "الأول",
+          },
+        ],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("اسم المحاضر");
+  });
+
   it("checks every item of an array against the contract", async () => {
     state.sendMessage = (_tabId, _message, callback) =>
       callback({

@@ -12,10 +12,12 @@ const state: {
   fetchFails: boolean;
   fetched: string[];
   html: string;
+  htmlByUrl: Record<string, string>;
 } = {
   fetchFails: false,
   fetched: [],
   html: "<html></html>",
+  htmlByUrl: {},
 };
 
 vi.stubGlobal("chrome", {
@@ -36,7 +38,7 @@ vi.stubGlobal("fetch", async (url: string) => {
     throw new Error("network down");
   }
 
-  return { ok: true, text: async () => state.html };
+  return { ok: true, text: async () => state.htmlByUrl[url] ?? state.html };
 });
 
 await import("../src/content/edugate.js");
@@ -45,6 +47,7 @@ describe("the Edugate content script", () => {
     state.fetchFails = false;
     state.fetched = [];
     state.html = "<html></html>";
+    state.htmlByUrl = {};
   });
 
   it("answers nothing to a message from a page or another extension", () => {
@@ -187,5 +190,45 @@ describe("the Edugate content script", () => {
     await vi.waitFor(() => {
       expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "not_logged_in" });
     });
+  });
+
+  it("fetches the completed page and then the remaining page for get_plan_progress", async () => {
+    const sendResponse = vi.fn();
+
+    state.listener?.(
+      { kind: "read", tool: "get_plan_progress" },
+      { id: "extension-id" },
+      sendResponse,
+    );
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "page_unreadable" });
+    });
+
+    expect(state.fetched).toEqual([
+      "https://edugate.ksu.edu.sa/ksu/ui/student/student_plan/index/forwardTakenPlanIndex.faces",
+      "https://edugate.ksu.edu.sa/ksu/ui/student/student_plan/index/forwardRemainPlanIndex.faces",
+    ]);
+  });
+
+  it("reports not_logged_in when the remaining plan page is the login form", async () => {
+    const sendResponse = vi.fn();
+
+    state.htmlByUrl = {
+      "https://edugate.ksu.edu.sa/ksu/ui/student/student_plan/index/forwardRemainPlanIndex.faces":
+        '<html><body><form id="loginForm"></form></body></html>',
+    };
+
+    state.listener?.(
+      { kind: "read", tool: "get_plan_progress" },
+      { id: "extension-id" },
+      sendResponse,
+    );
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "not_logged_in" });
+    });
+
+    expect(state.fetched).toHaveLength(2);
   });
 });

@@ -74,10 +74,22 @@ from it yet.
 
 ### Study plan (`get_plan_progress`)
 
-- Completed: `table#myForm:takenPlanTable`; remaining: `table#myForm:remainPlanTable`.
-- Headings: `رمز المقرر`, `اسم المقرر`, `الساعات`, `نوع المجموعة`, `المستوى`.
-- Courses are grouped by requirement group, each group headed with its hours in
-  brackets, e.g. `… (3)`.
+- Two pages: the completed courses (`…/student_plan/index/forwardTakenPlanIndex.faces`)
+  and the remaining ones (`…/student_plan/index/forwardRemainPlanIndex.faces`). The
+  reader fetches both in the same session.
+- Each page is split per requirement group. `table#myForm:takenPlanTable` and
+  `table#myForm:remainPlanTable` are the outer tables; each group inside them is its own
+  `…:N:table` with a header table `…:N:headerArray` above it. `N` is the group's index in
+  the order the page lists the groups, and it differs between the two pages, so groups are
+  matched across the pages **by title**, never by `N`.
+- The header holds the group title and `عدد الساعات (N)`: N is the hours that group
+  requires, and it is the same on both pages (e.g. `متطلبات الجامعة - عدد الساعات (4)`).
+- Group table headings: `رمز المقرر`, `اسم المقرر`, `الساعات`, `نوع المجموعة`, `المستوى`.
+- The remaining page lists **every option** of each elective group (a six-hour group can
+  list about twenty courses), so its rows are never summed. Per group the hours still
+  needed are max(the hours of its `إجباري` rows on the remaining page, N − the completed
+  hours of that group); `remaining_hours` is the sum over the groups. A student can exceed
+  N with electives while a mandatory course is still missing.
 
 ### Final exams (`get_final_exams`)
 

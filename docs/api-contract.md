@@ -102,7 +102,7 @@ for that tool in the [Phase 2 page map](phase2-page-map.md).
 | `get_schedule` | `schedule` | [Class schedule](phase2-page-map.md#class-schedule-get_schedule) | `{ "term": "...", "classes": [ { "code": "...", "name": "...", "activity": "...", "section": "...", "days": [1, 3], "start": "08:00", "end": "08:50" } ] }` |
 | `get_final_exams` | `schedule` | [Final exams](phase2-page-map.md#final-exams-get_final_exams) | `{ "exams": [ { "code": "...", "name": "...", "day": "الثلاثاء", "date": "6-07-1448", "time": "08:00", "location": "..." } ] }` — `day`, `date` and `location` may be `null` |
 | `get_absences` | `attendance` | [Absences](phase2-page-map.md#absences-get_absences) | `{ "courses": [ { "code": "...", "name": "...", "absence_percent": 12.5, "absences": 3, "lates": 1 } ] }` |
-| `get_plan_progress` | `plan` | [Study plan](phase2-page-map.md#study-plan-get_plan_progress) | `{ "completed_hours": 0, "remaining_hours": 0, "remaining_courses": [ { "code": "...", "name": "...", "hours": 3, "group": "...", "level": "..." } ] }` |
+| `get_plan_progress` | `plan` | [Study plan](phase2-page-map.md#study-plan-get_plan_progress) | `{ "completed_hours": 0, "remaining_hours": 0, "remaining_courses": [ { "code": "...", "name": "...", "hours": 3, "group": "...", "type": "...", "level": "..." } ] }` — `group` is the requirement group's title and `type` its نوع المجموعة as shown |
 | `get_courses` | `lms` | [LMS course list](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "code": "..." } ] }` — `code` may be `null` |
 | `get_assignments` | `lms` | [LMS due dates](phase2-page-map.md#lms-blackboard-ultra) | `{ "items": [ { "title": "...", "course": "...", "due_at": "2026-11-21T23:59:00+03:00" } ] }` |
 
@@ -133,6 +133,17 @@ Reading rules:
   `null` while the exam is not scheduled yet. `location` joins the non-empty parts of
   الوحدة/المبنى/الطابق/الجناح/القاعة with ` - `, and is `null` when every part is empty
   or `---`.
+- `get_plan_progress`: the two plan pages are split per requirement group, and the remaining
+  page lists **every option** of each elective group (a six-hour group can list about twenty
+  courses), so its rows are never summed. `completed_hours` is the sum of الساعات over the
+  completed rows. Per group, matched by title across the two pages, the hours still needed are
+  `max(the hours of its إجباري rows on the remaining page, N - completed)` where N is the
+  group's `عدد الساعات` and `completed` the hours of that group on the completed page;
+  `remaining_hours` is the sum over the groups. A student can exceed N with electives while a
+  mandatory course is still missing (a four-hour group with six elective hours completed and a
+  two-hour إجباري course still remaining needs two more hours, not zero). `group` is the group
+  title as shown and `type` its نوع المجموعة as shown; both pages are fetched in the same
+  session, and either one failing is the matching error.
 - A missing table or heading is reported as `page_unreadable`; no value is ever
   guessed.
 

@@ -5,6 +5,8 @@ import {
   type FinalExamsData,
   type GradesData,
   type GpaData,
+  type PlanProgressData,
+  type RemainingCourse,
   type ScheduleData,
   type ToolData,
   type ToolErrorKind,
@@ -72,6 +74,32 @@ const GRADES_TEMPLATES: Record<
     unrecorded: "Grades for {term} are not recorded yet in Edugate.",
   },
 };
+
+const PLAN_TEMPLATES: Record<
+  Lang,
+  { summary: string; mandatory: string; elective: string; join: string }
+> = {
+  ar: {
+    summary: "حسب Edugate، أكملت {completed} ساعة، وبقي لك {remaining} ساعة على التخرج.",
+    mandatory: "المقررات الإجبارية المتبقية: {courses}.",
+    elective: "{group}: {count} مقررات اختيارية متاحة.",
+    join: "، ",
+  },
+  en: {
+    summary:
+      "From Edugate, you have completed {completed} hours and have {remaining} hours left to graduate.",
+    mandatory: "Remaining mandatory courses: {courses}.",
+    elective: "{group}: {count} elective options available.",
+    join: ", ",
+  },
+};
+
+// The type column's word for a course the student must take, from the plan page.
+const MANDATORY_TYPES = ["إجباري", "اجباري"];
+
+function isMandatory(course: RemainingCourse): boolean {
+  return MANDATORY_TYPES.includes(course.type);
+}
 
 const SCHEDULE_TEMPLATES: Record<
   Lang,
@@ -191,6 +219,45 @@ export function gradesAnswer(data: GradesData, lang: Lang): string {
   );
 }
 
+/**
+ * The plan progress answer: the hours left, the mandatory courses by name, and one
+ * count per group for the elective options. The remaining page lists every option of
+ * an elective group, so the options themselves are never listed.
+ */
+export function planProgressAnswer(data: PlanProgressData, lang: Lang): string {
+  const templates = PLAN_TEMPLATES[lang];
+  const parts = [
+    fill(templates.summary, {
+      completed: String(data.completed_hours),
+      remaining: String(data.remaining_hours),
+    }),
+  ];
+
+  const mandatory = data.remaining_courses.filter(isMandatory);
+
+  if (mandatory.length > 0) {
+    parts.push(
+      fill(templates.mandatory, {
+        courses: mandatory.map((course) => course.name).join(templates.join),
+      }),
+    );
+  }
+
+  const electiveCounts = new Map<string, number>();
+
+  for (const course of data.remaining_courses) {
+    if (!isMandatory(course)) {
+      electiveCounts.set(course.group, (electiveCounts.get(course.group) ?? 0) + 1);
+    }
+  }
+
+  for (const [group, count] of electiveCounts) {
+    parts.push(fill(templates.elective, { group, count: String(count) }));
+  }
+
+  return parts.join(" ");
+}
+
 /** The schedule answer, one line per class slot, or the empty case. */
 export function scheduleAnswer(data: ScheduleData, lang: Lang): string {
   const templates = SCHEDULE_TEMPLATES[lang];
@@ -239,6 +306,8 @@ export function personalAnswer(
       return scheduleAnswer(data as ScheduleData, lang);
     case "get_grades":
       return gradesAnswer(data as GradesData, lang);
+    case "get_plan_progress":
+      return planProgressAnswer(data as PlanProgressData, lang);
     default:
       return null;
   }

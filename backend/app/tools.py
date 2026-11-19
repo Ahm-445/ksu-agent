@@ -62,6 +62,22 @@ _ENGLISH_OWN_ABSENCES = re.compile(
     r"\bmy\s+absences?\b|\bmy\s+absence\s+percentage\b"
 )
 
+# "كم باقي لي ساعات" / "المقررات المتبقية" / "كم ساعة باقية على التخرج": the student's
+# own study plan. The regulation question "كم ساعة يحتاج التخرج في هندسة البرمجيات؟"
+# asks how many hours a programme needs, not how many the student has left, so it stays
+# an ordinary answer. `normalise` rewrites "على" as "علي", so the pattern does too.
+_ARABIC_OWN_PLAN = re.compile(
+    r"باقي\s*(?:لي|لنا)\s*(?:كم\s*)?ساع"
+    r"|المقررات\s+المتبقي(?:ة|ه)?"
+    r"|باقي(?:ة|ه)?\s+علي\s+(?:ال)?تخرج"
+)
+
+# "how many hours left", "how many hours do I have left", "remaining credit hours".
+_ENGLISH_OWN_PLAN = re.compile(
+    r"\bhow\s+many\s+hours?\s+(?:do\s+i\s+have\s+)?left\b"
+    r"|\bremaining\s+(?:credit\s+)?hours\b"
+)
+
 
 def normalise(message: str) -> str:
     """Lower-case, digit-normalised text with the Arabic marks removed."""
@@ -92,5 +108,8 @@ def detect_personal_tool(message: str) -> str | None:
 
     if _ARABIC_OWN_ABSENCES.search(text) or _ENGLISH_OWN_ABSENCES.search(text):
         return "get_absences"
+
+    if _ARABIC_OWN_PLAN.search(text) or _ENGLISH_OWN_PLAN.search(text):
+        return "get_plan_progress"
 
     return None

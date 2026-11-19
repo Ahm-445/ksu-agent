@@ -11,6 +11,10 @@ import {
 } from "../readers/edugate/finalExams.js";
 import { isEdugateLoginPage, readGpa, type GpaData } from "../readers/edugate/gpa.js";
 import { readGrades, type GradesData } from "../readers/edugate/grades.js";
+import {
+  readPlanProgress,
+  type PlanProgressData,
+} from "../readers/edugate/plan.js";
 import { readSchedule, type ScheduleData } from "../readers/edugate/schedule.js";
 
 const EDUGATE = "https://edugate.ksu.edu.sa";
@@ -33,14 +37,19 @@ const TOOL_PAGES: Readonly<Record<string, readonly string[]>> = {
   get_grades: [
     `${EDUGATE}/ksu/ui/student/courses_results/index/forwardCoursesResults.faces`,
   ],
+  get_plan_progress: [
+    `${EDUGATE}/ksu/ui/student/student_plan/index/forwardTakenPlanIndex.faces`,
+    `${EDUGATE}/ksu/ui/student/student_plan/index/forwardRemainPlanIndex.faces`,
+  ],
 };
 
 type ReadData =
   | GpaData
   | AbsenceData
   | FinalExamData
+  | GradesData
   | ScheduleData
-  | GradesData;
+  | PlanProgressData;
 
 type ReadReply =
   | { ok: true; data: ReadData }
@@ -87,6 +96,11 @@ function readFor(tool: string, pages: readonly Document[]): ReadData | null {
       return readSchedule(page);
     case "get_grades":
       return readGrades(page);
+    case "get_plan_progress": {
+      const remaining = pages[1];
+
+      return remaining === undefined ? null : readPlanProgress(page, remaining);
+    }
     default:
       return null;
   }

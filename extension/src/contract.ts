@@ -70,6 +70,21 @@ const GRADES: Fields = {
   },
 };
 
+const PLAN_PROGRESS: Fields = {
+  completed_hours: "number",
+  remaining_hours: "number",
+  remaining_courses: {
+    array: {
+      code: "string",
+      name: "string",
+      hours: "number",
+      group: "string",
+      type: "string",
+      level: "string",
+    },
+  },
+};
+
 /** Every tool with a page reader, and the contract fields that tool returns. */
 export const TOOL_SCHEMAS: Readonly<Partial<Record<ToolName, Fields>>> = {
   get_gpa: GPA,
@@ -77,6 +92,7 @@ export const TOOL_SCHEMAS: Readonly<Partial<Record<ToolName, Fields>>> = {
   get_final_exams: FINAL_EXAMS,
   get_schedule: SCHEDULE,
   get_grades: GRADES,
+  get_plan_progress: PLAN_PROGRESS,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
