@@ -21,6 +21,7 @@ const state: {
   activity: unknown[];
   tabs: Array<{ id?: number }>;
   tabsQueryThrows: boolean;
+  queries: Array<{ url: string }>;
   sent: Array<{ tabId: number; message: unknown }>;
   sendMessage?: SendMessage;
   badge: string[];
@@ -30,6 +31,7 @@ const state: {
   activity: [],
   tabs: [],
   tabsQueryThrows: false,
+  queries: [],
   sent: [],
   badge: [],
 };
@@ -92,7 +94,9 @@ vi.stubGlobal("chrome", {
     },
   },
   tabs: {
-    query: async () => {
+    query: async (query: { url: string }) => {
+      state.queries.push(query);
+
       if (state.tabsQueryThrows) {
         throw new Error("tabs unavailable");
       }
@@ -205,6 +209,7 @@ describe("runToolInBrowser", () => {
   beforeEach(() => {
     state.tabs = [{ id: 7 }];
     state.tabsQueryThrows = false;
+    state.queries = [];
     state.sent = [];
     state.sendMessage = (_tabId, _message, callback) => callback({ ok: true, data: GPA });
   });
@@ -308,12 +313,77 @@ describe("runToolInBrowser", () => {
     }
   });
 
-  it("answers page_unreadable for a tool without a reader", async () => {
+  it("asks the LMS tab for the course list", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          courses: [
+            { code: "SWE 999", name: "Software Engineering Project", sections: ["99999"] },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_courses")).resolves.toEqual({
+      ok: true,
+      data: {
+        courses: [
+          { code: "SWE 999", name: "Software Engineering Project", sections: ["99999"] },
+        ],
+      },
+    });
+
+    expect(state.queries).toEqual([{ url: "https://lms.ksu.edu.sa/*" }]);
+    expect(state.sent).toEqual([
+      { tabId: 7, message: { kind: "read", tool: "get_courses" } },
+    ]);
+  });
+
+  it("reports not_logged_in when no LMS tab is open", async () => {
+    state.tabs = [];
+
+    await expect(runToolInBrowser("get_courses")).resolves.toEqual({
+      ok: false,
+      error: "not_logged_in",
+    });
+    expect(state.sent).toEqual([]);
+  });
+
+  it("keeps only the course contract fields and the membership ids out", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          courses: [
+            {
+              code: "SWE 999",
+              name: "Software Engineering Project",
+              sections: ["99999"],
+              ids: ["_999_1"],
+              email: "fake.student@student.ksu.edu.sa",
+            },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_courses")).resolves.toEqual({
+      ok: true,
+      data: {
+        courses: [
+          { code: "SWE 999", name: "Software Engineering Project", sections: ["99999"] },
+        ],
+      },
+    });
+  });
+
+  it("reports page_unreadable when a course has no section list", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({ ok: true, data: { courses: [{ code: "SWE 999", name: "Project" }] } });
+
     await expect(runToolInBrowser("get_courses")).resolves.toEqual({
       ok: false,
       error: "page_unreadable",
     });
-    expect(state.sent).toEqual([]);
   });
 
   it("keeps only the absences contract fields of each course", async () => {
