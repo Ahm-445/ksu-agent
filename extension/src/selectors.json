@@ -16,6 +16,10 @@
     "term": "فصلي",
     "cumulative": "تراكمي"
   },
+  "termLabel": {
+    "semesters": ["الأول", "الثاني", "الصيفي"],
+    "pattern": "الفصل\\s+(?<semester>{semesters})\\s+(?<year>[0-9]{4})/[0-9]{4}"
+  },
   "login": {
     "formId": "loginForm"
   }
