@@ -1,20 +1,41 @@
 // The LMS gradebook of one course, from /learn/api/v1/courses/{id}/gradebook/columns and
 // .../gradebook/grades.
 //
-// The course grade is the grade of the course's overall column, and only when that column is
-// visible to the student and its grades are released: a hidden column or one still being marked is
-// not the grade the student sees. The class average is a grade row with no user id, so it is never
-// taken, and no feedback text is read at all.
+// The answer lists the columns the student can see and whose grades are released, each with the
+// student's own score. This LMS has no overall or total column, so the items are what the
+// student's grade is made of. The feedback, the class average, the effective score and the manual
+// grade are never read: the student is shown their score and the status, and nothing else.
 
-import { isRecord, text } from "./ultra.js";
+import { count, isRecord, text } from "./ultra.js";
 
-export type Gradebook = { grade: string | null };
+export type GradeStatus = "graded" | "needs_grading" | "none";
 
-type Column = { id: string; overall: boolean };
+export type GradeItem = {
+  title: string;
+  score: number | null;
+  possible: number | null;
+  status: GradeStatus;
+};
 
-const NOTHING: Gradebook = { grade: null };
+export type Gradebook = { items: GradeItem[] };
 
-/** The columns of the answer, or null when one of them is not the documented shape. */
+type Column = {
+  id: string;
+  title: string;
+  possible: number | null;
+  position: number;
+};
+
+const STATUS: Record<string, GradeStatus> = {
+  GRADED: "graded",
+  NEEDS_GRADING: "needs_grading",
+};
+
+/**
+ * The columns the student sees, by position. A column the course hides, one whose grades are not
+ * released and one that was deleted are left out; a column without an id or a name cannot be
+ * listed, so it is skipped too. Null only when the answer is not the documented shape.
+ */
 function columnsOf(value: unknown): Column[] | null {
   if (!isRecord(value) || !Array.isArray(value.results)) {
     return null;
@@ -23,37 +44,67 @@ function columnsOf(value: unknown): Column[] | null {
   const columns: Column[] = [];
 
   for (const item of value.results) {
-    if (!isRecord(item) || !isRecord(item.grading)) {
-      return null;
+    if (!isRecord(item)) {
+      continue;
     }
 
     const id = text(item.id);
-    const type = text(item.grading.type);
-    const visibility = text(item.visibility);
+    const title = text(item.effectiveColumnName) ?? text(item.columnName);
 
-    if (id === null || type === null || visibility === null) {
-      return null;
+    if (id === null || title === null) {
+      continue;
     }
 
-    if (typeof item.gradesReleased !== "boolean") {
-      return null;
+    if (item.visible !== true || item.gradesReleased !== true || item.deleted === true) {
+      continue;
     }
 
     columns.push({
       id,
-      overall:
-        type === "Calculated" &&
-        visibility === "Visible" &&
-        item.gradesReleased === true,
+      title,
+      possible: count(item.possible),
+      position: count(item.position) ?? 0,
     });
   }
 
-  return columns;
+  return columns.sort((left, right) => left.position - right.position);
+}
+
+/** The grade rows, or null when the answer is not the documented shape. */
+function rowsOf(grades: unknown): Array<Record<string, unknown>> | null {
+  if (!isRecord(grades) || !Array.isArray(grades.results)) {
+    return null;
+  }
+
+  return grades.results.filter(isRecord);
 }
 
 /**
- * The student's own grade of the course's overall column, or null when the course has none to
- * show. Null for the whole answer when the shapes are not the documented ones.
+ * The student's own row of each column, by column id. A row of another student is not the
+ * student's grade, so it is skipped; so is a row without a column.
+ */
+function ownRows(
+  rows: readonly Record<string, unknown>[],
+  userId: string,
+): Map<string, Record<string, unknown>> {
+  const byColumn = new Map<string, Record<string, unknown>>();
+
+  for (const row of rows) {
+    const columnId = text(row.columnId);
+
+    if (columnId === null || row.userId !== userId || byColumn.has(columnId)) {
+      continue;
+    }
+
+    byColumn.set(columnId, row);
+  }
+
+  return byColumn;
+}
+
+/**
+ * The student's grade items of one course, in column order. Null only when the answers are not
+ * the documented shape; an empty course answers with no items.
  */
 export function readGradebook(
   columns: unknown,
@@ -66,35 +117,26 @@ export function readGradebook(
     return null;
   }
 
-  const overall = list.find((column) => column.overall);
+  const rows = rowsOf(grades);
 
-  if (overall === undefined) {
-    return NOTHING;
-  }
-
-  if (!isRecord(grades) || !Array.isArray(grades.results)) {
+  if (rows === null) {
     return null;
   }
 
-  for (const item of grades.results) {
-    if (!isRecord(item) || !("userId" in item)) {
-      return null;
-    }
+  const byColumn = ownRows(rows, userId);
 
-    const columnId = text(item.columnId);
+  return {
+    items: list.map((column) => {
+      const row = byColumn.get(column.id);
+      const shown = row?.displayGrade;
+      const status = row === undefined ? "none" : (STATUS[text(row.status) ?? ""] ?? "none");
 
-    if (columnId === null) {
-      return null;
-    }
-
-    if (columnId !== overall.id || item.userId !== userId) {
-      continue;
-    }
-
-    const shown = isRecord(item.displayGrade) ? text(item.displayGrade.text) : null;
-
-    return { grade: shown };
-  }
-
-  return NOTHING;
+      return {
+        title: column.title,
+        score: isRecord(shown) ? count(shown.score) : null,
+        possible: column.possible ?? (row === undefined ? null : count(row.pointsPossible)),
+        status,
+      };
+    }),
+  };
 }

@@ -1,57 +1,146 @@
 {
   "results": [
     {
-      "id": "_1001_1",
-      "calendarId": "_999_1_1",
+      "itemSourceId": "_1001_1",
+      "itemSourceType": "Course",
+      "calendarId": "_999_1",
+      "calendarNameLocalizable": {
+        "rawValue": "SWE999_99999_1_999: Software Engineering Project"
+      },
       "title": "Project proposal",
-      "description": "Submit the proposal as a PDF.",
-      "start": "2026-11-21T20:59:00.000Z",
-      "end": "2026-11-21T20:59:00.000Z",
+      "location": null,
+      "startDate": "2026-11-21T20:59:00.000Z",
+      "endDate": "2026-11-21T20:59:00.000Z",
+      "modifiedDate": "2026-11-10T09:00:00.000Z",
       "color": "#FF0000",
-      "calendarName": "Software Engineering Project"
+      "disableResizing": false,
+      "createdByUser": false,
+      "userCreated": false,
+      "dynamicCalendarItemProps": {
+        "gradable": true,
+        "eventType": "Assignment",
+        "categoryId": "_1001_1",
+        "attemptable": true,
+        "isDateRangeLimited": false,
+        "handle": "_1001_1"
+      },
+      "permissions": {},
+      "visibility": "PUBLIC"
     },
     {
-      "id": "_1002_1",
-      "calendarId": "_999_2_1",
+      "itemSourceId": "_1002_1",
+      "itemSourceType": "Course",
+      "calendarId": "_999_2",
+      "calendarNameLocalizable": {
+        "rawValue": "SWE999_99999_2_999: Software Engineering Project"
+      },
       "title": "Sprint review",
-      "description": "Present the sprint board.",
-      "start": "2026-11-23T06:30:00.000Z",
-      "end": "2026-11-23T06:30:00.000Z",
+      "location": null,
+      "startDate": "2026-11-23T06:30:00.000Z",
+      "endDate": "2026-11-23T06:30:00.000Z",
+      "modifiedDate": "2026-11-12T11:15:00.000Z",
       "color": "#FF0000",
-      "calendarName": "Software Engineering Project"
+      "disableResizing": false,
+      "createdByUser": false,
+      "userCreated": false,
+      "dynamicCalendarItemProps": {
+        "gradable": true,
+        "eventType": "Assignment",
+        "categoryId": "_1002_1",
+        "attemptable": true,
+        "isDateRangeLimited": false,
+        "handle": "_1002_1"
+      },
+      "permissions": {},
+      "visibility": "PUBLIC"
     },
     {
-      "id": "_1003_1",
-      "calendarId": "_996_1_1",
+      "itemSourceId": "_1003_1",
+      "itemSourceType": "Course",
+      "calendarId": "_996_1",
+      "calendarNameLocalizable": {
+        "rawValue": "ENG999_99999_1_999: Technical Writing"
+      },
       "title": "Essay draft",
-      "description": "A draft of 900 words.",
-      "start": "2026-11-20T20:59:00.000Z",
-      "end": "2026-11-20T20:59:00.000Z",
+      "location": null,
+      "startDate": "2026-11-20T20:59:00.000Z",
+      "endDate": "2026-11-20T20:59:00.000Z",
+      "modifiedDate": "2026-11-08T07:45:00.000Z",
       "color": "#0000FF",
-      "calendarName": "Technical Writing"
+      "disableResizing": false,
+      "createdByUser": false,
+      "userCreated": false,
+      "dynamicCalendarItemProps": {
+        "gradable": true,
+        "eventType": "Assignment",
+        "categoryId": "_1003_1",
+        "attemptable": true,
+        "isDateRangeLimited": false,
+        "handle": "_1003_1"
+      },
+      "permissions": {},
+      "visibility": "PUBLIC"
     },
     {
-      "id": "_1004_1",
-      "calendarId": "_999_3_1",
+      "itemSourceId": "_1004_1",
+      "itemSourceType": "Course",
+      "calendarId": "_999_3",
+      "calendarNameLocalizable": {
+        "rawValue": "SWE999_99999_3_999: Software Engineering Project"
+      },
       "title": "Section quiz",
-      "description": "Twenty minutes, in the lab.",
-      "start": "2026-11-25T10:00:00.000Z",
-      "end": "2026-11-25T10:00:00.000Z",
+      "location": null,
+      "startDate": "2026-11-24T22:30:00.000Z",
+      "endDate": "2026-11-24T22:30:00.000Z",
+      "modifiedDate": "2026-11-15T13:20:00.000Z",
       "color": "#FF0000",
-      "calendarName": "Software Engineering Project"
+      "disableResizing": false,
+      "createdByUser": false,
+      "userCreated": false,
+      "dynamicCalendarItemProps": {
+        "gradable": true,
+        "eventType": "Quiz",
+        "categoryId": "_1004_1",
+        "attemptable": true,
+        "isDateRangeLimited": false,
+        "handle": "_1004_1"
+      },
+      "permissions": {},
+      "visibility": "PUBLIC"
     },
     {
-      "id": "_1005_1",
-      "calendarId": "_111_1_1",
+      "itemSourceId": "_1005_1",
+      "itemSourceType": "Course",
+      "calendarId": "_111_1",
+      "calendarNameLocalizable": {
+        "rawValue": "MATH999_99999_1_999: Calculus II"
+      },
       "title": "Past course quiz",
-      "description": "From a course of an earlier term.",
-      "start": "2026-11-22T10:00:00.000Z",
-      "end": "2026-11-22T10:00:00.000Z",
+      "location": null,
+      "startDate": "2026-11-22T10:00:00.000Z",
+      "endDate": "2026-11-22T10:00:00.000Z",
+      "modifiedDate": "2026-11-05T08:00:00.000Z",
       "color": "#00AA00",
-      "calendarName": "Calculus II"
+      "disableResizing": false,
+      "createdByUser": false,
+      "userCreated": false,
+      "dynamicCalendarItemProps": {
+        "gradable": true,
+        "eventType": "Quiz",
+        "categoryId": "_1005_1",
+        "attemptable": true,
+        "isDateRangeLimited": false,
+        "handle": "_1005_1"
+      },
+      "permissions": {},
+      "visibility": "PUBLIC"
     }
   ],
   "paging": {
-    "nextPage": null
+    "previousPage": null,
+    "nextPage": null,
+    "limit": 50,
+    "count": 5,
+    "offset": 0
   }
 }

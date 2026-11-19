@@ -98,7 +98,7 @@ for that tool in the [Phase 2 page map](phase2-page-map.md).
 | :--- | :--- | :--- | :--- |
 | `get_gpa` | `grades` | [Academic record](phase2-page-map.md#academic-record-get_gpa) | `{ "cumulative_gpa": "4.21", "scale": "5", "earned_hours": 96, "registered_hours": 99, "as_of_term": "الفصل الأول 1448/1449" }` |
 | `get_grades` | `grades` | [Course results](phase2-page-map.md#course-results-get_grades) | `{ "term": "...", "courses": [ { "code": "...", "name": "...", "grade": "..." } ] }` — `grade` may be `null` |
-| `get_lms_grades` | `grades` | [LMS grades](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "grade": "..." } ] }` — `grade` may be `null` |
+| `get_lms_grades` | `grades` | [LMS grades](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "code": "SWE 483", "name": "...", "items": [ { "title": "...", "score": 8.5, "possible": 10, "status": "graded" } ] } ] }` — `code`, `score` and `possible` may be `null`, `status` is `graded`, `needs_grading` or `none` |
 | `get_schedule` | `schedule` | [Class schedule](phase2-page-map.md#class-schedule-get_schedule) | `{ "term": "...", "classes": [ { "code": "...", "name": "...", "activity": "...", "section": "...", "days": [1, 3], "start": "08:00", "end": "08:50" } ] }` |
 | `get_final_exams` | `schedule` | [Final exams](phase2-page-map.md#final-exams-get_final_exams) | `{ "exams": [ { "code": "...", "name": "...", "day": "الثلاثاء", "date": "6-07-1448", "time": "08:00", "location": "..." } ] }` — `day`, `date` and `location` may be `null` |
 | `get_absences` | `attendance` | [Absences](phase2-page-map.md#absences-get_absences) | `{ "courses": [ { "code": "...", "name": "...", "absence_percent": 12.5, "absences": 3, "lates": 1 } ] }` |
@@ -149,13 +149,24 @@ Reading rules:
   and each lab or tutorial as separate memberships, so the sections of one subject are
   merged into one course and `sections` holds their numbers; `code` is `SWE 999` from the
   course id, or `null` when the id does not match the pattern.
-- `get_assignments`: only items whose `calendarId` matches a current course are returned, and
-  the course name is the merged one. `due_at` is Riyadh time (`+03:00`) and the items are
-  soonest first. The item's `description` and the calendar id are never returned.
-- `get_lms_grades`: the overall grade of each current course, from the gradebook column that
-  is calculated, visible and released. A course without such a column has `grade` `null`. The
-  class average, the item grades and the feedback are never read, and the request carries
-  `?userId=` so only the student's own rows are returned.
+- `get_assignments`: `due_at` is the item's `endDate` in Riyadh time (`+03:00`) and the
+  items are soonest first. `course` is the student's merged current course when the item's
+  `calendarId` is one of its ids, and otherwise the course name the calendar prints in
+  `calendarNameLocalizable.rawValue` (`SWE483_77947_1_481: <name>` → `<name>`). An item
+  without a title or without an end date is skipped, and only an answer whose `results` is
+  not an array is `page_unreadable`. The item's description, source and calendar id are
+  never returned.
+- `get_lms_grades`: this LMS has **no overall or total column**, so the answer lists the
+  gradebook columns instead: `visible` and `gradesReleased` and not `deleted`, in `position`
+  order, titled by `effectiveColumnName`. Each item joins the column with the student's own
+  grade row of it (`columnId`, and `userId` equal to the signed-in id): `score` is
+  `displayGrade.score` when it is a number and `null` otherwise, `possible` is the column's
+  `possible` (or the row's `pointsPossible`), and `status` is `GRADED` → `graded`,
+  `NEEDS_GRADING` → `needs_grading`, and `none` when the row is absent or carries no
+  status. Sections of one subject are merged under one course entry and a course with no
+  items is left out. `instructorFeedback`, `averageScore`, `effectiveScore`, `manualGrade`,
+  `manualScore` and the attempt URLs are never read, and an unknown key in a row is ignored.
+  A row of another student is never taken.
 - Five Edugate pages (final exams, schedule, course results, both study plan pages) answer a
   GET with a forward stub. The extension replays that stub's own form once, to the same
   URL; see [Forward pages](phase2-page-map.md#forward-pages). A page that is still a stub
@@ -224,7 +235,8 @@ a new ADR.
    action per confirmation, never batched or scheduled.
 7. The LMS ids — the signed-in user id and the membership ids — are used to build the
    request and are never returned, stored or logged; only the fields the catalogue lists
-   leave the extension.
+   leave the extension. The gradebook's feedback, class average, effective score and manual
+   grade never leave it either.
 
 What the backend may log:
 

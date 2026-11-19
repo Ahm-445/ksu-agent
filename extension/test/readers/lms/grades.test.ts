@@ -18,80 +18,124 @@ function book(courseId: string): Book {
   return structuredClone(all[courseId] as Book);
 }
 
+function columns(courseId: string): { results: Array<Record<string, unknown>> } {
+  return book(courseId).columns as { results: Array<Record<string, unknown>> };
+}
+
 describe("readGradebook", () => {
-  it("reads the overall grade of the course", () => {
+  it("lists the released columns by position, with the student's own score", () => {
     const { columns, grades } = book("_999_1");
 
-    expect(readGradebook(columns, grades, STUDENT)).toEqual({ grade: "88.50" });
+    expect(readGradebook(columns, grades, STUDENT)).toEqual({
+      items: [
+        { title: "Project proposal", score: 8.5, possible: 10, status: "graded" },
+        { title: "Sprint quiz", score: null, possible: 5, status: "needs_grading" },
+        { title: "Midterm total", score: 17, possible: 20, status: "none" },
+      ],
+    });
   });
 
-  it("ignores a column whose grades are not released yet", () => {
-    const { columns, grades } = book("_999_2");
+  it("orders the items by the column position", () => {
+    const list = columns("_999_1");
 
-    expect(readGradebook(columns, grades, STUDENT)).toEqual({ grade: null });
+    list.results.reverse();
+
+    const read = readGradebook(list, book("_999_1").grades, STUDENT);
+
+    expect(read?.items.map((item) => item.title)).toEqual([
+      "Project proposal",
+      "Sprint quiz",
+      "Midterm total",
+    ]);
   });
 
-  it("ignores a column the course hides", () => {
+  it("lists a column calculated by a custom formula like any other", () => {
+    const read = readGradebook(book("_999_1").columns, book("_999_1").grades, STUDENT);
+    const custom = read?.items.find((item) => item.title === "Midterm total");
+
+    expect(custom).toEqual({
+      title: "Midterm total",
+      score: 17,
+      possible: 20,
+      status: "none",
+    });
+  });
+
+  it("has no items for a course with no columns", () => {
+    expect(readGradebook(book("_999_2").columns, book("_999_2").grades, STUDENT)).toEqual({
+      items: [],
+    });
+  });
+
+  it("leaves out a hidden column, a deleted column and an unreleased one", () => {
     const { columns, grades } = book("_999_3");
+    const read = readGradebook(columns, grades, STUDENT);
 
-    expect(readGradebook(columns, grades, STUDENT)).toEqual({ grade: null });
+    expect(read?.items).toEqual([
+      { title: "Lab task (lab)", score: 4, possible: 4, status: "graded" },
+    ]);
   });
 
-  it("has no grade when the student has none in the overall column", () => {
+  it("lists a column with no grade row as not graded", () => {
     const { columns, grades } = book("_994_1");
 
-    expect(readGradebook(columns, grades, STUDENT)).toEqual({ grade: null });
+    expect(readGradebook(columns, grades, STUDENT)).toEqual({
+      items: [{ title: "Discussion", score: null, possible: 10, status: "none" }],
+    });
   });
 
-  it("takes the student's own grade and never the class average", () => {
-    const { columns, grades } = book("_999_1");
-
-    expect(readGradebook(columns, grades, STUDENT)).toEqual({ grade: "88.50" });
-    expect(readGradebook(columns, grades, "_999_9")).toEqual({ grade: null });
-  });
-
-  it("returns the grade alone, with no feedback and no column names", () => {
+  it("takes the student's own row and never another student's", () => {
     const { columns, grades } = book("_999_1");
     const read = readGradebook(columns, grades, STUDENT);
 
-    expect(JSON.stringify(read)).not.toContain("Good work");
-    expect(JSON.stringify(read)).not.toContain("Overall Grade");
-    expect(JSON.stringify(read)).not.toContain("Project proposal");
+    expect(read?.items[0]?.score).toBe(8.5);
+    expect(JSON.stringify(read)).not.toContain("99.5");
   });
 
-  it("has no grade when the course has no overall column", () => {
-    const { columns, grades } = book("_996_1");
+  it("never returns the feedback, the average, the effective score or the manual grade", () => {
+    const { columns, grades } = book("_999_1");
+    const read = JSON.stringify(readGradebook(columns, grades, STUDENT));
 
-    expect(readGradebook(columns, grades, STUDENT)).toEqual({ grade: null });
+    expect(read).not.toContain("Well argued.");
+    expect(read).not.toContain("7.25");
+    expect(read).not.toContain("manualGrade");
+    expect(read).not.toContain("instructorFeedback");
+  });
+
+  it("ignores a key the reader does not know", () => {
+    const { columns, grades } = book("_999_1");
+    const list = grades as { results: Array<Record<string, unknown>> };
+
+    list.results[0] = { ...list.results[0], attemptUrls: ["https://lms.example/x"] };
+
+    expect(readGradebook(columns, grades, STUDENT)?.items[0]?.score).toBe(8.5);
   });
 
   it("returns null when the column list is not a list", () => {
-    const { grades } = book("_999_1");
-
-    expect(readGradebook({ results: "none" }, grades, STUDENT)).toBeNull();
+    expect(readGradebook({ results: "none" }, book("_999_1").grades, STUDENT)).toBeNull();
   });
 
   it("returns null when the grade list is not a list", () => {
-    const { columns } = book("_999_1");
-
-    expect(readGradebook(columns, { results: 7 }, STUDENT)).toBeNull();
+    expect(readGradebook(book("_999_1").columns, { results: 7 }, STUDENT)).toBeNull();
   });
 
-  it("returns null when a column has no id or no visibility", () => {
-    const { columns, grades } = book("_999_1");
-    const list = columns as { results: Array<Record<string, unknown>> };
+  it("skips a column without an id instead of failing the course", () => {
+    const list = columns("_999_1");
 
-    list.results[0] = { ...list.results[0], visibility: undefined };
+    list.results[0] = { ...list.results[0], id: undefined };
 
-    expect(readGradebook(columns, grades, STUDENT)).toBeNull();
+    const read = readGradebook(list, book("_999_1").grades, STUDENT);
+
+    expect(read?.items.map((item) => item.title)).toEqual(["Sprint quiz", "Midterm total"]);
   });
 
-  it("returns null when the overall column is not marked as calculated", () => {
-    const { columns, grades } = book("_999_1");
-    const list = columns as { results: Array<Record<string, unknown>> };
+  it("reads the possible score from the grade row when the column has none", () => {
+    const list = columns("_999_1");
 
-    list.results[0] = { ...list.results[0], grading: { type: "Manual" } };
+    list.results[0] = { ...list.results[0], possible: undefined };
 
-    expect(readGradebook(columns, grades, STUDENT)).toEqual({ grade: null });
+    const read = readGradebook(list, book("_999_1").grades, STUDENT);
+
+    expect(read?.items[0]?.possible).toBe(10);
   });
 });

@@ -388,8 +388,27 @@ describe("runToolInBrowser", () => {
         ok: true,
         data: {
           courses: [
-            { name: "Software Engineering Project", grade: "88.50", average: "71.20" },
-            { name: "Technical Writing", grade: null, feedback: "Well argued." },
+            {
+              code: "SWE 999",
+              name: "Software Engineering Project",
+              items: [
+                {
+                  title: "Project proposal",
+                  score: 8.5,
+                  possible: 10,
+                  status: "graded",
+                  feedback: "Well argued.",
+                },
+                {
+                  title: "Sprint quiz",
+                  score: null,
+                  possible: 5,
+                  status: "needs_grading",
+                  average: 3.2,
+                },
+              ],
+              average: "71.20",
+            },
           ],
         },
       });
@@ -398,13 +417,40 @@ describe("runToolInBrowser", () => {
       ok: true,
       data: {
         courses: [
-          { name: "Software Engineering Project", grade: "88.50" },
-          { name: "Technical Writing", grade: null },
+          {
+            code: "SWE 999",
+            name: "Software Engineering Project",
+            items: [
+              { title: "Project proposal", score: 8.5, possible: 10, status: "graded" },
+              { title: "Sprint quiz", score: null, possible: 5, status: "needs_grading" },
+            ],
+          },
         ],
       },
     });
 
     expect(state.queries).toEqual([{ url: "https://lms.ksu.edu.sa/*" }]);
+  });
+
+  it("reports page_unreadable when an LMS grade item is not the contract shape", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          courses: [
+            {
+              code: "SWE 999",
+              name: "Software Engineering Project",
+              items: [{ title: "Project proposal", score: "8.5" }],
+            },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_lms_grades")).resolves.toEqual({
+      ok: false,
+      error: "page_unreadable",
+    });
   });
 
   it("keeps only the course contract fields and the membership ids out", async () => {

@@ -17,7 +17,7 @@ import {
   type LmsCourse,
 } from "../readers/lms/ultra.js";
 import { readDueDates } from "../readers/lms/due-dates.js";
-import { readGradebook, type Gradebook } from "../readers/lms/grades.js";
+import { readGradebook, type GradeItem } from "../readers/lms/grades.js";
 
 export type LmsReply =
   | { ok: true; data: Record<string, unknown> }
@@ -203,13 +203,16 @@ async function currentTerm(deadline: number): Promise<Term | Failure> {
   return courses === null ? failed("page_unreadable") : { userId, courses };
 }
 
-/** The student's grade in one course, or null when its answers are not the documented shape. */
+/** The student's grade items of one course, or why they could not be read. */
 async function gradebook(
   courseId: string,
   userId: string,
   deadline: number,
-): Promise<Gradebook | Failure> {
-  const path = selectors.lms.columns.replace("{id}", encodeURIComponent(courseId));
+): Promise<GradeItem[] | Failure> {
+  const path = `${selectors.lms.columns.replace(
+    "{id}",
+    encodeURIComponent(courseId),
+  )}?includeInvisible=false`;
   const columns = await getJson(path, deadline);
 
   if (columns.kind === "failed") {
@@ -219,7 +222,7 @@ async function gradebook(
   const gradesPath = `${selectors.lms.grades.replace(
     "{id}",
     encodeURIComponent(courseId),
-  )}?userId=${encodeURIComponent(userId)}`;
+  )}?userId=${encodeURIComponent(userId)}&limit=100`;
   const grades = await getJson(gradesPath, deadline);
 
   if (grades.kind === "failed") {
@@ -228,7 +231,7 @@ async function gradebook(
 
   const book = readGradebook(columns.value, grades.value, userId);
 
-  return book === null ? failed("page_unreadable") : book;
+  return book === null ? failed("page_unreadable") : book.items;
 }
 
 /** Runs one LMS tool and answers with the fields the contract lists for it. */
@@ -250,7 +253,14 @@ export async function readLmsTool(tool: string): Promise<LmsReply> {
   }
 
   if (tool === "get_assignments") {
-    const items = await paged(selectors.lms.dueDates, deadline);
+    const query = new URLSearchParams({
+      date: new Date().toISOString(),
+      date_compare: "greaterOrEqual",
+      includeCount: "true",
+      limit: "50",
+      offset: "0",
+    });
+    const items = await paged(`${selectors.lms.dueDates}?${query.toString()}`, deadline);
 
     if (!Array.isArray(items)) {
       return { ok: false, error: items.error };
@@ -264,28 +274,33 @@ export async function readLmsTool(tool: string): Promise<LmsReply> {
   }
 
   if (tool === "get_lms_grades") {
-    const courses: Array<{ name: string; grade: string | null }> = [];
+    const courses: Array<{
+      code: string | null;
+      name: string;
+      items: GradeItem[];
+    }> = [];
 
     for (const course of term.courses) {
-      let grade: string | null = null;
+      const items: GradeItem[] = [];
 
-      // The sections of one subject are separate courses in the gradebook; the first grade
-      // released to the student is the one the merged entry shows.
+      // The sections of one subject are separate courses in the gradebook, and each one has its
+      // own columns, so the items of every section are listed under the merged course.
       for (const id of course.ids) {
         const book = await gradebook(id, term.userId, deadline);
 
-        if (!("grade" in book)) {
+        if (!Array.isArray(book)) {
           return { ok: false, error: book.error };
         }
 
-        grade = book.grade;
-
-        if (grade !== null) {
-          break;
-        }
+        items.push(...book);
       }
 
-      courses.push({ name: course.name, grade });
+      // A course with nothing to show is left out rather than listed empty.
+      if (items.length === 0) {
+        continue;
+      }
+
+      courses.push({ code: course.code, name: course.name, items });
     }
 
     return { ok: true, data: { courses } };

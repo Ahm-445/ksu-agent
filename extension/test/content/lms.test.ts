@@ -15,14 +15,19 @@ const LMS = "https://lms.ksu.edu.sa";
 const ME_URL = `${LMS}/learn/api/v1/users/me`;
 const MEMBERSHIPS_URL = `${LMS}/learn/api/v1/users/_999_0/memberships?expand=course&includeCount=true&limit=100`;
 const MEMBERSHIPS_PAGE_2 = `${MEMBERSHIPS_URL}&offset=100`;
-const DUE_DATES_URL = `${LMS}/learn/api/v1/calendars/dueDateCalendarItems`;
+const DUE_DATES_PATH = `${LMS}/learn/api/v1/calendars/dueDateCalendarItems`;
 
 function columnsUrl(courseId: string): string {
-  return `${LMS}/learn/api/v1/courses/${courseId}/gradebook/columns`;
+  return `${LMS}/learn/api/v1/courses/${courseId}/gradebook/columns?includeInvisible=false`;
 }
 
 function gradesUrl(courseId: string): string {
-  return `${LMS}/learn/api/v1/courses/${courseId}/gradebook/grades?userId=_999_0`;
+  return `${LMS}/learn/api/v1/courses/${courseId}/gradebook/grades?userId=_999_0&limit=100`;
+}
+
+/** The path of a fetched URL, without the query the reader builds at run time. */
+function path(url: string): string {
+  return url.split("?")[0] as string;
 }
 
 // jsdom gives no file URL for this module, so the fixtures folder is taken from the run.
@@ -92,7 +97,8 @@ vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
   state.inFlight -= 1;
   state.log.push(`${url} end`);
 
-  const reply = state.replies[url] ?? { status: 404, type: "application/json", body: "" };
+  const reply = state.replies[url] ??
+    state.replies[path(url)] ?? { status: 404, type: "application/json", body: "" };
 
   return {
     ok: reply.status >= 200 && reply.status < 300,
@@ -124,7 +130,7 @@ describe("the LMS content script", () => {
     state.replies = {
       [ME_URL]: json(JSON.parse(fixture("me.json"))),
       [MEMBERSHIPS_URL]: json(JSON.parse(fixture("memberships.json"))),
-      [DUE_DATES_URL]: json(JSON.parse(fixture("due-dates.json"))),
+      [DUE_DATES_PATH]: json(JSON.parse(fixture("due-dates.json"))),
     };
     state.fetched = [];
     state.calls = [];
@@ -274,7 +280,11 @@ describe("the LMS content script", () => {
       expect(sendResponse).toHaveBeenCalled();
     });
 
-    expect(state.fetched).toEqual([ME_URL, MEMBERSHIPS_URL, DUE_DATES_URL]);
+    expect(state.fetched.map(path)).toEqual([
+      ME_URL,
+      MEMBERSHIPS_URL.split("?")[0],
+      DUE_DATES_PATH,
+    ]);
     expect(replyOf(sendResponse)).toEqual({
       ok: true,
       data: {
@@ -290,6 +300,11 @@ describe("the LMS content script", () => {
             due_at: "2026-11-21T23:59:00+03:00",
           },
           {
+            title: "Past course quiz",
+            course: "Calculus II",
+            due_at: "2026-11-22T13:00:00+03:00",
+          },
+          {
             title: "Sprint review",
             course: "Software Engineering Project",
             due_at: "2026-11-23T09:30:00+03:00",
@@ -297,7 +312,7 @@ describe("the LMS content script", () => {
           {
             title: "Section quiz",
             course: "Software Engineering Project",
-            due_at: "2026-11-25T13:00:00+03:00",
+            due_at: "2026-11-25T01:30:00+03:00",
           },
         ],
       },
@@ -305,7 +320,7 @@ describe("the LMS content script", () => {
   });
 
   it("reports not_logged_in for the due dates when the session is refused", async () => {
-    state.replies[DUE_DATES_URL] = { status: 403, type: "application/json", body: "" };
+    state.replies[DUE_DATES_PATH] = { status: 403, type: "application/json", body: "" };
     const sendResponse = read("get_assignments");
 
     await vi.waitFor(() => {
@@ -313,11 +328,41 @@ describe("the LMS content script", () => {
     });
   });
 
-  it("reports page_unreadable when a due date is missing", async () => {
+  it("asks the calendar for the due dates from now on", async () => {
+    const sendResponse = read("get_assignments");
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+
+    const query = new URL(state.fetched[2] as string).searchParams;
+
+    expect(query.get("date")).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(query.get("date_compare")).toBe("greaterOrEqual");
+    expect(query.get("limit")).toBe("50");
+    expect(query.get("offset")).toBe("0");
+  });
+
+  it("skips a due date the LMS has not filled in, and keeps the rest", async () => {
     const items = JSON.parse(fixture("due-dates.json"));
 
-    delete items.results[0].start;
-    state.replies[DUE_DATES_URL] = json(items);
+    delete items.results[0].endDate;
+    state.replies[DUE_DATES_PATH] = json(items);
+
+    const sendResponse = read("get_assignments");
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+
+    const reply = replyOf(sendResponse) as { data?: { items?: Array<{ title: string }> } };
+
+    expect(reply.data?.items?.map((item) => item.title)).not.toContain("Project proposal");
+    expect(reply.data?.items).toHaveLength(4);
+  });
+
+  it("reports page_unreadable when the due date list is not a list", async () => {
+    state.replies[DUE_DATES_PATH] = json({ results: "none" });
 
     const sendResponse = read("get_assignments");
 
@@ -347,9 +392,21 @@ describe("the LMS content script", () => {
       ok: true,
       data: {
         courses: [
-          { name: "Software Engineering Project", grade: "88.50" },
-          { name: "Technical Writing", grade: null },
-          { name: "Special Topic", grade: null },
+          {
+            code: "SWE 999",
+            name: "Software Engineering Project",
+            items: [
+              { title: "Project proposal", score: 8.5, possible: 10, status: "graded" },
+              { title: "Sprint quiz", score: null, possible: 5, status: "needs_grading" },
+              { title: "Midterm total", score: 17, possible: 20, status: "none" },
+              { title: "Lab task (lab)", score: 4, possible: 4, status: "graded" },
+            ],
+          },
+          {
+            code: null,
+            name: "Special Topic",
+            items: [{ title: "Discussion", score: null, possible: 10, status: "none" }],
+          },
         ],
       },
     });
@@ -374,11 +431,38 @@ describe("the LMS content script", () => {
 
     const body = JSON.stringify(replyOf(sendResponse));
 
-    expect(body).not.toContain("95.00");
-    expect(body).not.toContain("100.00");
-    expect(body).not.toContain("71.20");
-    expect(body).not.toContain("Good work");
     expect(body).not.toContain("Well argued.");
+    expect(body).not.toContain("Keep it up.");
+    expect(body).not.toContain("7.25");
+    expect(body).not.toContain("99.5");
+    expect(body).not.toContain("5.5");
+    expect(body).not.toContain("6.5");
+    expect(body).not.toContain("9.5");
+    expect(body).not.toContain("88");
+  });
+
+  it("leaves out a course with nothing to show", async () => {
+    const books = JSON.parse(fixture("gradebook.json")) as Record<
+      string,
+      { columns: unknown; grades: unknown }
+    >;
+
+    for (const [courseId, book] of Object.entries(books)) {
+      state.replies[columnsUrl(courseId)] = json(book.columns);
+      state.replies[gradesUrl(courseId)] = json(book.grades);
+    }
+
+    const sendResponse = read("get_lms_grades");
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+
+    const reply = replyOf(sendResponse) as { data?: { courses?: Array<{ name: string }> } };
+
+    expect(reply.data?.courses?.map((course) => course.name)).not.toContain(
+      "Technical Writing",
+    );
   });
 
   it("reports not_logged_in for the grades when the session is refused", async () => {
@@ -392,7 +476,7 @@ describe("the LMS content script", () => {
   });
 
   it("reports page_unreadable when a gradebook is not the documented shape", async () => {
-    state.replies[columnsUrl("_999_1")] = json({ results: [{ id: "_2001_1" }] });
+    state.replies[columnsUrl("_999_1")] = json({ results: "none" });
     state.replies[gradesUrl("_999_1")] = json({ results: [] });
 
     const sendResponse = read("get_lms_grades");

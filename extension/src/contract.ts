@@ -5,7 +5,7 @@ import type { ToolName } from "./protocol.js";
 // reaches the website: every object is rebuilt with the listed keys only, and a missing
 // or mistyped field makes the page unreadable rather than a guess.
 
-type ScalarType = "string" | "number" | "string|null";
+type ScalarType = "string" | "number" | "string|null" | "number|null";
 
 type Field = ScalarType | { array: ScalarType | Fields };
 
@@ -108,8 +108,16 @@ const LMS_ASSIGNMENTS: Fields = {
 const LMS_GRADES: Fields = {
   courses: {
     array: {
+      code: "string|null",
       name: "string",
-      grade: "string|null",
+      items: {
+        array: {
+          title: "string",
+          score: "number|null",
+          possible: "number|null",
+          status: "string",
+        },
+      },
     },
   },
 };
@@ -142,6 +150,8 @@ function keepScalar(type: ScalarType, value: unknown): unknown {
         : undefined;
     case "string|null":
       return typeof value === "string" || value === null ? value : undefined;
+    case "number|null":
+      return typeof value === "number" || value === null ? value : undefined;
   }
 }
 

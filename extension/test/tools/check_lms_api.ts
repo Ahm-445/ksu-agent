@@ -70,11 +70,27 @@ function items(data: Data): Record<string, boolean> {
 
 function grades(data: Data): Record<string, boolean> {
   const list = objects(data, "courses") ?? [];
+  const items = list.flatMap((course) => (Array.isArray(course.items) ? course.items : []));
 
   return {
-    courses_named: list.every((course) => text(course.name) !== null),
-    grade_or_null: list.every(
-      (course) => course.grade === null || text(course.grade) !== null,
+    courses_named: list.every(
+      (course) => text(course.name) !== null && (course.code === null || text(course.code) !== null),
+    ),
+    courses_have_items: list.every(
+      (course) => Array.isArray(course.items) && course.items.length > 0,
+    ),
+    scores_or_null: items.every(
+      (item) =>
+        isRecord(item) && (item.score === null || typeof item.score === "number"),
+    ),
+    possible_or_null: items.every(
+      (item) =>
+        isRecord(item) && (item.possible === null || typeof item.possible === "number"),
+    ),
+    statuses_known: items.every(
+      (item) =>
+        isRecord(item) &&
+        ["graded", "needs_grading", "none"].includes(String(item.status)),
     ),
   };
 }
@@ -118,7 +134,12 @@ async function main(): Promise<void> {
   const results = [
     await run("get_courses", courses, (data) => (objects(data, "courses") ?? []).length),
     await run("get_assignments", items, (data) => (objects(data, "items") ?? []).length),
-    await run("get_lms_grades", grades, (data) => (objects(data, "courses") ?? []).length),
+    await run("get_lms_grades", grades, (data) =>
+      (objects(data, "courses") ?? []).reduce(
+        (sum, course) => sum + (Array.isArray(course.items) ? course.items.length : 0),
+        0,
+      ),
+    ),
   ];
 
   console.log(

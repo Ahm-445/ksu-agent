@@ -180,9 +180,9 @@ the browser's.
 | :--- | :--- | :--- |
 | signed-in user | `/learn/api/v1/users/me` | `id` only, kept in memory |
 | course list | `/learn/api/v1/users/{id}/memberships?expand=course&includeCount=true&limit=100` | `results[]`, each with `role`, `courseId` and `course` |
-| due dates | `/learn/api/v1/calendars/dueDateCalendarItems` | `results[]`, each with `calendarId`, `title`, `start` |
-| gradebook columns | `/learn/api/v1/courses/{id}/gradebook/columns` | `results[]`, each with `id`, `grading.type`, `visibility`, `gradesReleased` |
-| gradebook grades | `/learn/api/v1/courses/{id}/gradebook/grades?userId={id}` | `results[]`, each with `userId`, `columnId`, `displayGrade.text` |
+| due dates | `/learn/api/v1/calendars/dueDateCalendarItems?date=<now ISO>&date_compare=greaterOrEqual&includeCount=true&limit=50&offset=0` | `results[]`, each with `calendarId`, `calendarNameLocalizable.rawValue`, `title`, `endDate` |
+| gradebook columns | `/learn/api/v1/courses/{id}/gradebook/columns?includeInvisible=false` | `results[]`, each with `id`, `effectiveColumnName`, `possible`, `visible`, `gradesReleased`, `deleted`, `position` |
+| gradebook grades | `/learn/api/v1/courses/{id}/gradebook/grades?userId={id}&limit=100` | `results[]`, each with `userId`, `columnId`, `status`, `displayGrade.score` |
 
 - Paging follows `paging.nextPage` up to five pages; a page past that is not read.
 - A 401 or 403, or a login page instead of JSON, is `not_logged_in`. JSON of another shape
@@ -191,21 +191,38 @@ the browser's.
   one subject are merged into one course: Ultra lists a lecture and each lab or tutorial as
   separate memberships (`SWE 999_1_1`, `SWE 999_2_1`). `code` comes from the course id by
   `courseCodePattern` and is `null` when the id does not match.
-- Due dates are matched to those courses by the `calendarId` prefix (`_999_1_`), so an item
-  of a merged section carries the merged course name. `start` is a UTC timestamp and is
-  returned in Riyadh time (`+03:00`), soonest first.
-- The gradebook's overall grade is the column with `grading.type` `Calculated`,
-  `visibility` `Visible` and `gradesReleased` true. Grades are read one course at a time,
-  with `?userId=` so only the student's own rows come back; the class average row has
-  `userId` null and is skipped, and feedback is never read. A course whose overall column
-  is missing, hidden or not released has `grade` `null`.
+- The due dates call asks for the items from now on (`date_compare=greaterOrEqual`), so the
+  calendar returns the student's own future work. The due time is `endDate`, which the API
+  gives in UTC: `2026-11-19T05:45:00.000Z` is `2026-11-19T08:45:00+03:00`, the
+  `11/19/26, 8:45 AM (UTC+3)` the page prints. The items are soonest first. An item's
+  course is the merged course whose id is its `calendarId` (`_999_1`); an item on another
+  calendar keeps the name after the colon in `calendarNameLocalizable.rawValue`
+  (`SWE483_77947_1_481: <name>` → `<name>`). An item without a title or without an
+  `endDate` is skipped.
+- This LMS has **no overall or total column**: across the developer's six courses the
+  gradebook held 34 `NON_CALCULATED` columns and 1 `CUSTOM` one, and many courses had
+  `results: []`. The answer therefore lists the items themselves: the columns with
+  `visible` true, `gradesReleased` true and `deleted` false, in `position` order, titled by
+  `effectiveColumnName`. Each column is joined with the student's own grade row of it
+  (`columnId`, and `userId` equal to the signed-in id — `?userId=` is sent, and a row of
+  another user is still skipped). The score is `displayGrade.score`, which only a recorded
+  grade carries (8 of 22 rows in the real answer); the possible score is the column's
+  `possible`, falling back to the row's `pointsPossible`. The status is the row's `status`:
+  `GRADED` or `NEEDS_GRADING`, and no row or no status is `none`. `instructorFeedback`,
+  `averageScore`, `effectiveScore`, `manualGrade`, `manualScore` and the attempt URLs are
+  never read. An unknown key in a row is ignored.
 - The reader keeps `id` from `/users/me` in memory for the memberships and grades calls and
   returns nothing of it.
 
 The saved HTML pages `extension/test/fixtures/lms/*.html` are kept for reference only: no
 reader uses them, because a saved Ultra page carries none of its content. The JSON fixtures
-in `extension/test/fixtures/lms-api/` are written by hand to the shapes above, with fake ids
-(`_999_…`) and fake values, and are what the reader tests read.
+in `extension/test/fixtures/lms-api/` carry **only the keys captured from the student's real
+session** — no invented key such as `grading.type`, `visibility`, `score.possible`,
+`item.start` or `feedback` — with fake ids (`_999_…`) and fake values, and are what the
+reader tests read. `gradebook.json` covers a course with `columns: []`, a row without
+`status`, a `NEEDS_GRADING` row without `displayGrade`, a `CUSTOM` column and an
+`instructorFeedback` string; `due-dates.json` covers an `endDate` that crosses midnight in
+`+03:00` (`2026-11-24T22:30:00.000Z` → `2026-11-25T01:30:00+03:00`).
 
 Because the LMS answers only in a real session, `npm run build:lms-check` bundles a console
 script (`dist/lms-check.js`) that runs the three LMS tools on the page and prints the tool
