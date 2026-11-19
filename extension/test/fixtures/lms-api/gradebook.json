@@ -1,0 +1,167 @@
+{
+  "_999_1": {
+    "columns": {
+      "results": [
+        {
+          "id": "_2001_1",
+          "name": "Overall Grade",
+          "displayName": "Overall Grade",
+          "score": { "possible": "100" },
+          "grading": { "type": "Calculated" },
+          "visibility": "Visible",
+          "gradesReleased": true
+        },
+        {
+          "id": "_2002_1",
+          "name": "Project proposal",
+          "displayName": "Project proposal",
+          "score": { "possible": "20" },
+          "grading": { "type": "Manual" },
+          "visibility": "Visible",
+          "gradesReleased": true
+        }
+      ],
+      "paging": { "nextPage": null }
+    },
+    "grades": {
+      "results": [
+        {
+          "userId": "_999_0",
+          "columnId": "_2001_1",
+          "status": "Graded",
+          "score": 88.5,
+          "displayGrade": { "text": "88.50", "score": 88.5 },
+          "feedback": "Good work"
+        },
+        {
+          "userId": null,
+          "columnId": "_2001_1",
+          "status": "Graded",
+          "score": 71.2,
+          "displayGrade": { "text": "71.20", "score": 71.2 }
+        },
+        {
+          "userId": "_999_0",
+          "columnId": "_2002_1",
+          "status": "Graded",
+          "score": 18,
+          "displayGrade": { "text": "18.00", "score": 18 },
+          "feedback": "Well argued."
+        }
+      ],
+      "paging": { "nextPage": null }
+    }
+  },
+  "_999_2": {
+    "columns": {
+      "results": [
+        {
+          "id": "_2011_1",
+          "name": "Overall Grade",
+          "displayName": "Overall Grade",
+          "score": { "possible": "100" },
+          "grading": { "type": "Calculated" },
+          "visibility": "Visible",
+          "gradesReleased": false
+        }
+      ],
+      "paging": { "nextPage": null }
+    },
+    "grades": {
+      "results": [
+        {
+          "userId": "_999_0",
+          "columnId": "_2011_1",
+          "status": "Graded",
+          "score": 95,
+          "displayGrade": { "text": "95.00", "score": 95 }
+        }
+      ],
+      "paging": { "nextPage": null }
+    }
+  },
+  "_999_3": {
+    "columns": {
+      "results": [
+        {
+          "id": "_2021_1",
+          "name": "Overall Grade",
+          "displayName": "Overall Grade",
+          "score": { "possible": "100" },
+          "grading": { "type": "Calculated" },
+          "visibility": "Hidden",
+          "gradesReleased": true
+        }
+      ],
+      "paging": { "nextPage": null }
+    },
+    "grades": {
+      "results": [
+        {
+          "userId": "_999_0",
+          "columnId": "_2021_1",
+          "status": "Graded",
+          "score": 100,
+          "displayGrade": { "text": "100.00", "score": 100 }
+        }
+      ],
+      "paging": { "nextPage": null }
+    }
+  },
+  "_996_1": {
+    "columns": {
+      "results": [
+        {
+          "id": "_2031_1",
+          "name": "Essay draft",
+          "displayName": "Essay draft",
+          "score": { "possible": "10" },
+          "grading": { "type": "Manual" },
+          "visibility": "Visible",
+          "gradesReleased": true
+        }
+      ],
+      "paging": { "nextPage": null }
+    },
+    "grades": {
+      "results": [
+        {
+          "userId": "_999_0",
+          "columnId": "_2031_1",
+          "status": "Graded",
+          "score": 9,
+          "displayGrade": { "text": "9.00", "score": 9 }
+        }
+      ],
+      "paging": { "nextPage": null }
+    }
+  },
+  "_994_1": {
+    "columns": {
+      "results": [
+        {
+          "id": "_2041_1",
+          "name": "Overall Grade",
+          "displayName": "Overall Grade",
+          "score": { "possible": "100" },
+          "grading": { "type": "Calculated" },
+          "visibility": "Visible",
+          "gradesReleased": true
+        }
+      ],
+      "paging": { "nextPage": null }
+    },
+    "grades": {
+      "results": [
+        {
+          "userId": null,
+          "columnId": "_2041_1",
+          "status": "Graded",
+          "score": 64,
+          "displayGrade": { "text": "64.00", "score": 64 }
+        }
+      ],
+      "paging": { "nextPage": null }
+    }
+  }
+}

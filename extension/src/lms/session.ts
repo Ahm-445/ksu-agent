@@ -17,6 +17,7 @@ import {
   type LmsCourse,
 } from "../readers/lms/ultra.js";
 import { readDueDates } from "../readers/lms/due-dates.js";
+import { readGradebook, type Gradebook } from "../readers/lms/grades.js";
 
 export type LmsReply =
   | { ok: true; data: Record<string, unknown> }
@@ -34,6 +35,8 @@ const BUDGET_MS = 19_000;
 
 // A list answer is followed through paging.nextPage, and never past these pages.
 const LIST_PAGES = 5;
+
+const LMS_TOOLS: readonly string[] = ["get_courses", "get_assignments", "get_lms_grades"];
 
 function failed(error: Failure["error"]): Failure {
   return { error };
@@ -179,8 +182,10 @@ function memberships(userId: string, deadline: number): Promise<unknown[] | Fail
   return paged(path, deadline);
 }
 
-/** The courses of the current term, or why they could not be read. */
-async function currentCourses(deadline: number): Promise<LmsCourse[] | Failure> {
+type Term = { userId: string; courses: LmsCourse[] };
+
+/** The student's id and the courses of the current term, or why they could not be read. */
+async function currentTerm(deadline: number): Promise<Term | Failure> {
   const userId = await signedInId(deadline);
 
   if (typeof userId !== "string") {
@@ -195,41 +200,95 @@ async function currentCourses(deadline: number): Promise<LmsCourse[] | Failure> 
 
   const courses = readCourses(items, new Date());
 
-  return courses === null ? failed("page_unreadable") : courses;
+  return courses === null ? failed("page_unreadable") : { userId, courses };
+}
+
+/** The student's grade in one course, or null when its answers are not the documented shape. */
+async function gradebook(
+  courseId: string,
+  userId: string,
+  deadline: number,
+): Promise<Gradebook | Failure> {
+  const path = selectors.lms.columns.replace("{id}", encodeURIComponent(courseId));
+  const columns = await getJson(path, deadline);
+
+  if (columns.kind === "failed") {
+    return columns;
+  }
+
+  const gradesPath = `${selectors.lms.grades.replace(
+    "{id}",
+    encodeURIComponent(courseId),
+  )}?userId=${encodeURIComponent(userId)}`;
+  const grades = await getJson(gradesPath, deadline);
+
+  if (grades.kind === "failed") {
+    return grades;
+  }
+
+  const book = readGradebook(columns.value, grades.value, userId);
+
+  return book === null ? failed("page_unreadable") : book;
 }
 
 /** Runs one LMS tool and answers with the fields the contract lists for it. */
 export async function readLmsTool(tool: string): Promise<LmsReply> {
+  if (!LMS_TOOLS.includes(tool)) {
+    return { ok: false, error: "page_unreadable" };
+  }
+
   const deadline = Date.now() + BUDGET_MS;
 
+  const term = await currentTerm(deadline);
+
+  if (!("courses" in term)) {
+    return { ok: false, error: term.error };
+  }
+
   if (tool === "get_courses") {
-    const courses = await currentCourses(deadline);
-
-    if (!Array.isArray(courses)) {
-      return { ok: false, error: courses.error };
-    }
-
-    return { ok: true, data: { courses: coursesData(courses).courses } };
+    return { ok: true, data: { courses: coursesData(term.courses).courses } };
   }
 
   if (tool === "get_assignments") {
-    const courses = await currentCourses(deadline);
-
-    if (!Array.isArray(courses)) {
-      return { ok: false, error: courses.error };
-    }
-
     const items = await paged(selectors.lms.dueDates, deadline);
 
     if (!Array.isArray(items)) {
       return { ok: false, error: items.error };
     }
 
-    const due = readDueDates(items, courses);
+    const due = readDueDates(items, term.courses);
 
     return due === null
       ? { ok: false, error: "page_unreadable" }
       : { ok: true, data: { items: due.items } };
+  }
+
+  if (tool === "get_lms_grades") {
+    const courses: Array<{ name: string; grade: string | null }> = [];
+
+    for (const course of term.courses) {
+      let grade: string | null = null;
+
+      // The sections of one subject are separate courses in the gradebook; the first grade
+      // released to the student is the one the merged entry shows.
+      for (const id of course.ids) {
+        const book = await gradebook(id, term.userId, deadline);
+
+        if (!("grade" in book)) {
+          return { ok: false, error: book.error };
+        }
+
+        grade = book.grade;
+
+        if (grade !== null) {
+          break;
+        }
+      }
+
+      courses.push({ name: course.name, grade });
+    }
+
+    return { ok: true, data: { courses } };
   }
 
   return { ok: false, error: "page_unreadable" };

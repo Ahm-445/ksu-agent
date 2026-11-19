@@ -17,6 +17,14 @@ const MEMBERSHIPS_URL = `${LMS}/learn/api/v1/users/_999_0/memberships?expand=cou
 const MEMBERSHIPS_PAGE_2 = `${MEMBERSHIPS_URL}&offset=100`;
 const DUE_DATES_URL = `${LMS}/learn/api/v1/calendars/dueDateCalendarItems`;
 
+function columnsUrl(courseId: string): string {
+  return `${LMS}/learn/api/v1/courses/${courseId}/gradebook/columns`;
+}
+
+function gradesUrl(courseId: string): string {
+  return `${LMS}/learn/api/v1/courses/${courseId}/gradebook/grades?userId=_999_0`;
+}
+
 // jsdom gives no file URL for this module, so the fixtures folder is taken from the run.
 const FIXTURES = join(process.cwd(), "test", "fixtures", "lms-api");
 
@@ -312,6 +320,82 @@ describe("the LMS content script", () => {
     state.replies[DUE_DATES_URL] = json(items);
 
     const sendResponse = read("get_assignments");
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "page_unreadable" });
+    });
+  });
+
+  it("reads one grade per course of the current term", async () => {
+    const books = JSON.parse(fixture("gradebook.json")) as Record<
+      string,
+      { columns: unknown; grades: unknown }
+    >;
+
+    for (const [courseId, book] of Object.entries(books)) {
+      state.replies[columnsUrl(courseId)] = json(book.columns);
+      state.replies[gradesUrl(courseId)] = json(book.grades);
+    }
+
+    const sendResponse = read("get_lms_grades");
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+
+    expect(replyOf(sendResponse)).toEqual({
+      ok: true,
+      data: {
+        courses: [
+          { name: "Software Engineering Project", grade: "88.50" },
+          { name: "Technical Writing", grade: null },
+          { name: "Special Topic", grade: null },
+        ],
+      },
+    });
+  });
+
+  it("never sends a grade that is not released, nor feedback or the class average", async () => {
+    const books = JSON.parse(fixture("gradebook.json")) as Record<
+      string,
+      { columns: unknown; grades: unknown }
+    >;
+
+    for (const [courseId, book] of Object.entries(books)) {
+      state.replies[columnsUrl(courseId)] = json(book.columns);
+      state.replies[gradesUrl(courseId)] = json(book.grades);
+    }
+
+    const sendResponse = read("get_lms_grades");
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+
+    const body = JSON.stringify(replyOf(sendResponse));
+
+    expect(body).not.toContain("95.00");
+    expect(body).not.toContain("100.00");
+    expect(body).not.toContain("71.20");
+    expect(body).not.toContain("Good work");
+    expect(body).not.toContain("Well argued.");
+  });
+
+  it("reports not_logged_in for the grades when the session is refused", async () => {
+    state.replies[columnsUrl("_999_1")] = { status: 401, type: "application/json", body: "" };
+
+    const sendResponse = read("get_lms_grades");
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "not_logged_in" });
+    });
+  });
+
+  it("reports page_unreadable when a gradebook is not the documented shape", async () => {
+    state.replies[columnsUrl("_999_1")] = json({ results: [{ id: "_2001_1" }] });
+    state.replies[gradesUrl("_999_1")] = json({ results: [] });
+
+    const sendResponse = read("get_lms_grades");
 
     await vi.waitFor(() => {
       expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "page_unreadable" });

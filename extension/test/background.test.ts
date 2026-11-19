@@ -382,6 +382,31 @@ describe("runToolInBrowser", () => {
     expect(state.queries).toEqual([{ url: "https://lms.ksu.edu.sa/*" }]);
   });
 
+  it("keeps only the LMS grade contract fields", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          courses: [
+            { name: "Software Engineering Project", grade: "88.50", average: "71.20" },
+            { name: "Technical Writing", grade: null, feedback: "Well argued." },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_lms_grades")).resolves.toEqual({
+      ok: true,
+      data: {
+        courses: [
+          { name: "Software Engineering Project", grade: "88.50" },
+          { name: "Technical Writing", grade: null },
+        ],
+      },
+    });
+
+    expect(state.queries).toEqual([{ url: "https://lms.ksu.edu.sa/*" }]);
+  });
+
   it("keeps only the course contract fields and the membership ids out", async () => {
     state.sendMessage = (_tabId, _message, callback) =>
       callback({
