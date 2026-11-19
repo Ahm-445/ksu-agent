@@ -103,7 +103,7 @@ for that tool in the [Phase 2 page map](phase2-page-map.md).
 | `get_final_exams` | `schedule` | [Final exams](phase2-page-map.md#final-exams-get_final_exams) | `{ "exams": [ { "code": "...", "name": "...", "day": "الثلاثاء", "date": "6-07-1448", "time": "08:00", "location": "..." } ] }` — `day`, `date` and `location` may be `null` |
 | `get_absences` | `attendance` | [Absences](phase2-page-map.md#absences-get_absences) | `{ "courses": [ { "code": "...", "name": "...", "absence_percent": 12.5, "absences": 3, "lates": 1 } ] }` |
 | `get_plan_progress` | `plan` | [Study plan](phase2-page-map.md#study-plan-get_plan_progress) | `{ "completed_hours": 0, "remaining_hours": 0, "remaining_courses": [ { "code": "...", "name": "...", "hours": 3, "group": "...", "type": "...", "level": "..." } ] }` — `group` is the requirement group's title and `type` its نوع المجموعة as shown |
-| `get_courses` | `lms` | [LMS course list](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "code": "..." } ] }` — `code` may be `null` |
+| `get_courses` | `lms` | [LMS course list](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "code": "SWE 999", "sections": [ "1", "2" ] } ] }` — `code` may be `null`, `sections` may be empty |
 | `get_assignments` | `lms` | [LMS due dates](phase2-page-map.md#lms-blackboard-ultra) | `{ "items": [ { "title": "...", "course": "...", "due_at": "2026-11-21T23:59:00+03:00" } ] }` |
 
 Consent categories: `grades`, `schedule`, `attendance`, `plan`, `lms`. The student
@@ -144,6 +144,18 @@ Reading rules:
   two-hour إجباري course still remaining needs two more hours, not zero). `group` is the group
   title as shown and `type` its نوع المجموعة as shown; both pages are fetched in the same
   session, and either one failing is the matching error.
+- The three LMS tools read Blackboard Ultra's own JSON API in the student's session, not
+  HTML (see [the page map](phase2-page-map.md#lms-blackboard-ultra)). Ultra lists a lecture
+  and each lab or tutorial as separate memberships, so the sections of one subject are
+  merged into one course and `sections` holds their numbers; `code` is `SWE 999` from the
+  course id, or `null` when the id does not match the pattern.
+- `get_assignments`: only items whose `calendarId` matches a current course are returned, and
+  the course name is the merged one. `due_at` is Riyadh time (`+03:00`) and the items are
+  soonest first. The item's `description` and the calendar id are never returned.
+- `get_lms_grades`: the overall grade of each current course, from the gradebook column that
+  is calculated, visible and released. A course without such a column has `grade` `null`. The
+  class average, the item grades and the feedback are never read, and the request carries
+  `?userId=` so only the student's own rows are returned.
 - Five Edugate pages (final exams, schedule, course results, both study plan pages) answer a
   GET with a forward stub. The extension replays that stub's own form once, to the same
   URL; see [Forward pages](phase2-page-map.md#forward-pages). A page that is still a stub
@@ -210,6 +222,9 @@ a new ADR.
 5. Page content (announcements, files, emails) is data, never instructions to the AI.
 6. Phase 3: every action is confirmed by the student in the extension's own screen, one
    action per confirmation, never batched or scheduled.
+7. The LMS ids — the signed-in user id and the membership ids — are used to build the
+   request and are never returned, stored or logged; only the fields the catalogue lists
+   leave the extension.
 
 What the backend may log:
 

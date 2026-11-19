@@ -169,13 +169,48 @@ the saved fixtures have their scripts and hidden form fields scrubbed out.
 
 ### LMS (Blackboard Ultra)
 
-- The LMS builds its pages in the browser after load, so a reader must **wait for the
-  content to appear** before reading.
-- Course list: course cards, a term filter, and the `To Do` / `Overdue` / `Due Today` /
-  `Due Soon` sections.
-- Due dates: items grouped under day headings such as `Saturday - November 21, 2026`;
-  each item shows a `Due:` label, title and course.
-- Grades: one card per course under `Current Courses and Organizations`.
+Blackboard Ultra builds its pages in the browser from its own JSON API, so the rendered
+HTML is a shell and a saved page holds nothing to read. The readers therefore call that
+API **same-origin, in the student's own session**, instead of parsing HTML. Every request
+is absolute on `https://lms.ksu.edu.sa` (`selectors.lms.origin`), the content script runs
+in the top frame only, and nothing is read from a cookie or a token: the session cookie is
+the browser's.
+
+| Call | Endpoint | Gives |
+| :--- | :--- | :--- |
+| signed-in user | `/learn/api/v1/users/me` | `id` only, kept in memory |
+| course list | `/learn/api/v1/users/{id}/memberships?expand=course&includeCount=true&limit=100` | `results[]`, each with `role`, `courseId` and `course` |
+| due dates | `/learn/api/v1/calendars/dueDateCalendarItems` | `results[]`, each with `calendarId`, `title`, `start` |
+| gradebook columns | `/learn/api/v1/courses/{id}/gradebook/columns` | `results[]`, each with `id`, `grading.type`, `visibility`, `gradesReleased` |
+| gradebook grades | `/learn/api/v1/courses/{id}/gradebook/grades?userId={id}` | `results[]`, each with `userId`, `columnId`, `displayGrade.text` |
+
+- Paging follows `paging.nextPage` up to five pages; a page past that is not read.
+- A 401 or 403, or a login page instead of JSON, is `not_logged_in`. JSON of another shape
+  is `page_unreadable`; no value is guessed.
+- The membership list is filtered to the current term (`currentTerm`), and the sections of
+  one subject are merged into one course: Ultra lists a lecture and each lab or tutorial as
+  separate memberships (`SWE 999_1_1`, `SWE 999_2_1`). `code` comes from the course id by
+  `courseCodePattern` and is `null` when the id does not match.
+- Due dates are matched to those courses by the `calendarId` prefix (`_999_1_`), so an item
+  of a merged section carries the merged course name. `start` is a UTC timestamp and is
+  returned in Riyadh time (`+03:00`), soonest first.
+- The gradebook's overall grade is the column with `grading.type` `Calculated`,
+  `visibility` `Visible` and `gradesReleased` true. Grades are read one course at a time,
+  with `?userId=` so only the student's own rows come back; the class average row has
+  `userId` null and is skipped, and feedback is never read. A course whose overall column
+  is missing, hidden or not released has `grade` `null`.
+- The reader keeps `id` from `/users/me` in memory for the memberships and grades calls and
+  returns nothing of it.
+
+The saved HTML pages `extension/test/fixtures/lms/*.html` are kept for reference only: no
+reader uses them, because a saved Ultra page carries none of its content. The JSON fixtures
+in `extension/test/fixtures/lms-api/` are written by hand to the shapes above, with fake ids
+(`_999_…`) and fake values, and are what the reader tests read.
+
+Because the LMS answers only in a real session, `npm run build:lms-check` bundles a console
+script (`dist/lms-check.js`) that runs the three LMS tools on the page and prints the tool
+name, whether the read worked, the item count and true/false checks — never a title, a grade
+or an id.
 
 ## Rules for readers
 
