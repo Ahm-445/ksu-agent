@@ -16,7 +16,7 @@ import {
   type ChatMessage,
 } from "@/lib/chatStorage";
 import { runTool } from "@/lib/extension";
-import { gpaAnswer, toolErrorKey } from "@/lib/personalAnswers";
+import { gpaAnswer, toolErrorText } from "@/lib/personalAnswers";
 
 function createId(): string {
   try {
@@ -121,7 +121,7 @@ export function ChatScreen() {
       appendMessage({
         id: createId(),
         role: "assistant",
-        text: t.chat.errors[toolErrorKey(outcome.error)],
+        text: toolErrorText(t, outcome.error, tool),
         personal: true,
         status: "ok",
       });

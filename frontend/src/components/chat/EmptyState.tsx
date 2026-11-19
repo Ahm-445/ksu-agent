@@ -19,14 +19,20 @@ export function EmptyState({ firstName, onSelect, disabled }: EmptyStateProps) {
   useEffect(() => {
     let active = true;
 
-    void detectExtension().then((status) => {
-      if (active) {
-        setExtension(status);
-      }
-    });
+    const refresh = () => {
+      void detectExtension().then((status) => {
+        if (active) {
+          setExtension(status);
+        }
+      });
+    };
+
+    refresh();
+    window.addEventListener("focus", refresh);
 
     return () => {
       active = false;
+      window.removeEventListener("focus", refresh);
     };
   }, []);
 
@@ -70,7 +76,15 @@ export function EmptyState({ firstName, onSelect, disabled }: EmptyStateProps) {
               : t.chat.extension.install}
           </p>
 
-          {extension.installed ? null : (
+          {extension.installed ? (
+            <p className="mt-1 text-[11px] leading-relaxed text-muted">
+              {extension.categoriesAllowed.length > 0
+                ? `${t.chat.extension.allowed} ${extension.categoriesAllowed
+                    .map((category) => t.chat.categories[category])
+                    .join(t.chat.extension.separator)}`
+                : t.chat.extension.noneAllowed}
+            </p>
+          ) : (
             <p className="mt-1 text-[11px] leading-relaxed text-muted">
               {t.chat.extension.installNote}
             </p>

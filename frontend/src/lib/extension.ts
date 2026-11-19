@@ -1,16 +1,46 @@
 const EXTENSION_ID = (process.env.NEXT_PUBLIC_EXTENSION_ID ?? "").trim();
 const PING_TIMEOUT_MS = 1500;
 
+export const CATEGORIES = [
+  "grades",
+  "schedule",
+  "attendance",
+  "plan",
+  "lms",
+] as const;
+
+export type Category = (typeof CATEGORIES)[number];
+
+export function isCategory(value: unknown): value is Category {
+  return typeof value === "string" && (CATEGORIES as readonly string[]).includes(value);
+}
+
+/** The consent category each tool needs, from the API contract's tool catalogue. */
+export const TOOL_CATEGORIES: Record<string, Category> = {
+  get_gpa: "grades",
+  get_grades: "grades",
+  get_lms_grades: "grades",
+  get_schedule: "schedule",
+  get_final_exams: "schedule",
+  get_absences: "attendance",
+  get_plan_progress: "plan",
+  get_courses: "lms",
+  get_assignments: "lms",
+};
+
+export function categoryOfTool(tool: string): Category | null {
+  return Object.hasOwn(TOOL_CATEGORIES, tool) ? TOOL_CATEGORIES[tool] : null;
+}
+
 export type ExtensionStatus =
   | { installed: false }
-  | { installed: true; version: string; categoriesAllowed: string[] };
+  | { installed: true; version: string; categoriesAllowed: Category[] };
 
 type SendMessage = (
   extensionId: string,
   message: unknown,
   callback: (response?: unknown) => void,
 ) => void;
-
 type Runtime = {
   sendMessage: SendMessage;
   lastError?: { message?: string };
@@ -110,11 +140,10 @@ export async function detectExtension(): Promise<ExtensionStatus> {
     if (!isPong(response)) {
       return { installed: false };
     }
-
     return {
       installed: true,
       version: response.version,
-      categoriesAllowed: response.categories_allowed,
+      categoriesAllowed: response.categories_allowed.filter(isCategory),
     };
   } catch {
     return { installed: false };

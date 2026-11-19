@@ -1,5 +1,5 @@
-import type { Lang } from "@/lib/i18n";
-import type { GpaData, ToolErrorKind } from "@/lib/extension";
+import type { Dictionary, Lang } from "@/lib/i18n";
+import { categoryOfTool, type GpaData, type ToolErrorKind } from "@/lib/extension";
 
 // Factual answers about the student's own data are built here, in the browser, from
 // fixed templates (ADR 0001). The values are filled in and never leave the device.
@@ -43,4 +43,27 @@ export function toolErrorKey(error: ToolErrorKind): ToolErrorKey {
     default:
       return "readFailed";
   }
+}
+
+/**
+ * The message for a failed tool run. When the student has not allowed the category
+ * the tool needs, the message names that category.
+ */
+export function toolErrorText(
+  t: Dictionary,
+  error: ToolErrorKind,
+  tool: string,
+): string {
+  if (error === "no_consent") {
+    const category = categoryOfTool(tool);
+
+    return category
+      ? t.chat.errors.consentMissingFor.replace(
+          "{category}",
+          t.chat.categories[category],
+        )
+      : t.chat.errors.consentMissing;
+  }
+
+  return t.chat.errors[toolErrorKey(error)];
 }
