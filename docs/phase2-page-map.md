@@ -73,8 +73,13 @@ from it yet.
 ### Final exams (`get_final_exams`)
 
 - Headings: `رمز المقرر`, `اسم المقرر`, `الشعبة`, the location heading
-  (`مكان الاختبار الوحدة المبنى الطابق الجناح القاعة`), `يوم الاختبار`,
+  (`مكان الاختبار` with الوحدة/المبنى/الطابق/الجناح/القاعة inside it), `يوم الاختبار`,
   `وقت الاختبار`, `تاريخ الاختبار`.
+- The location cell holds a nested `…:roomTable` whose inner row has the five parts;
+  on a real record every part is `---` until a room is assigned.
+- Some rows have no day and no date yet, only a time: both are `null` then. The date is
+  the Hijri date as shown (`6-07-1448`) and is not converted.
+- `وقت الاختبار` is 24-hour `HH:MM` on the real page.
 
 ### LMS (Blackboard Ultra)
 

@@ -5,6 +5,10 @@
 // nothing to storage. Every page is fetched with a same-origin GET: no form is posted.
 
 import { readAbsences, type AbsenceData } from "../readers/edugate/absences.js";
+import {
+  readFinalExams,
+  type FinalExamData,
+} from "../readers/edugate/finalExams.js";
 import { isEdugateLoginPage, readGpa, type GpaData } from "../readers/edugate/gpa.js";
 
 const EDUGATE = "https://edugate.ksu.edu.sa";
@@ -18,9 +22,12 @@ const TOOL_PAGES: Readonly<Record<string, readonly string[]>> = {
   get_absences: [
     `${EDUGATE}/ksu/ui/student/student_absences/index/courseAbsencesIndex.faces`,
   ],
+  get_final_exams: [
+    `${EDUGATE}/ksu/ui/student/final_exams/index/forwardFinalExams.faces`,
+  ],
 };
 
-type ReadData = GpaData | AbsenceData;
+type ReadData = GpaData | AbsenceData | FinalExamData;
 
 type ReadReply =
   | { ok: true; data: ReadData }
@@ -61,6 +68,8 @@ function readFor(tool: string, pages: readonly Document[]): ReadData | null {
       return readGpa(page);
     case "get_absences":
       return readAbsences(page);
+    case "get_final_exams":
+      return readFinalExams(page);
     default:
       return null;
   }

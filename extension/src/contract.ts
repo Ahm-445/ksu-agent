@@ -31,10 +31,24 @@ const ABSENCES: Fields = {
   },
 };
 
+const FINAL_EXAMS: Fields = {
+  exams: {
+    array: {
+      code: "string",
+      name: "string",
+      day: "string|null",
+      date: "string|null",
+      time: "string",
+      location: "string|null",
+    },
+  },
+};
+
 /** Every tool with a page reader, and the contract fields that tool returns. */
 export const TOOL_SCHEMAS: Readonly<Partial<Record<ToolName, Fields>>> = {
   get_gpa: GPA,
   get_absences: ABSENCES,
+  get_final_exams: FINAL_EXAMS,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

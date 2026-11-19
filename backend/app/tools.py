@@ -6,7 +6,7 @@ no I/O — so a question about the student's own GPA costs nothing to classify.
 
 Only a question about the student's *own* data maps to a tool. The regulation
 questions that mention the same words in general ("كم المعدل المطلوب للتخرج؟",
-"ما شروط الحرمان؟", "when is the final exam?") stay ordinary answers from the
+"ما شروط الحرمان؟", "متى الاختبار النهائي؟") stay ordinary answers from the
 regulation, so the match needs the possessive form ("معدلي", "غيابي", "my gpa") or a
 colloquial name for the student's own page ("الفاينل", "درجات المواد").
 """
@@ -30,6 +30,15 @@ _ARABIC_OWN_GPA = re.compile(r"معدل(?:ي|نا)(?![\u0621-\u064a])")
 
 # "my gpa", "my cumulative gpa", "what is my gpa".
 _ENGLISH_OWN_GPA = re.compile(r"\bmy\s+(?:cumulative\s+)?gpa\b")
+
+# "اختباراتي" / "اختباراتنا" and the colloquial "الفاينل". The regulation question
+# "متى الاختبار النهائي؟" has neither, so it stays an ordinary answer.
+_ARABIC_OWN_FINAL_EXAMS = re.compile(
+    r"اختبارات(?:ي|نا)(?![\u0621-\u064a])|الفاينل"
+)
+
+# "my final exam", "my final exams".
+_ENGLISH_OWN_FINAL_EXAMS = re.compile(r"\bmy\s+final\s+exams?\b")
 
 # "غيابي" / "نسبة غيابي" / "غيابنا".
 _ARABIC_OWN_ABSENCES = re.compile(r"غياب(?:ي|نا)(?![\u0621-\u064a])")
@@ -57,6 +66,9 @@ def detect_personal_tool(message: str) -> str | None:
 
     if _ARABIC_OWN_GPA.search(text) or _ENGLISH_OWN_GPA.search(text):
         return "get_gpa"
+
+    if _ARABIC_OWN_FINAL_EXAMS.search(text) or _ENGLISH_OWN_FINAL_EXAMS.search(text):
+        return "get_final_exams"
 
     if _ARABIC_OWN_ABSENCES.search(text) or _ENGLISH_OWN_ABSENCES.search(text):
         return "get_absences"

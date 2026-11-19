@@ -17,7 +17,11 @@ const store = createStore(chrome.storage.local);
 const EDUGATE_TAB_QUERY = { url: "https://edugate.ksu.edu.sa/*" };
 
 // Every tool with a page reader in this step. The LMS tools come later.
-const TOOLS_WITH_READER: readonly ToolName[] = ["get_gpa", "get_absences"];
+const TOOLS_WITH_READER: readonly ToolName[] = [
+  "get_gpa",
+  "get_absences",
+  "get_final_exams",
+];
 
 const READ_TIMEOUT_MS = 20_000;
 

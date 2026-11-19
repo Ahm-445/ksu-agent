@@ -351,6 +351,57 @@ describe("runToolInBrowser", () => {
     });
   });
 
+  it("keeps the final exam contract fields and their null cases", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          exams: [
+            {
+              code: "SWE 444",
+              name: "هندسة البرمجيات",
+              day: null,
+              date: null,
+              time: "08:00",
+              location: null,
+              lecturer: "اسم المحاضر",
+            },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_final_exams")).resolves.toEqual({
+      ok: true,
+      data: {
+        exams: [
+          {
+            code: "SWE 444",
+            name: "هندسة البرمجيات",
+            day: null,
+            date: null,
+            time: "08:00",
+            location: null,
+          },
+        ],
+      },
+    });
+  });
+
+  it("reports page_unreadable when a nullable final exam field is missing", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          exams: [{ code: "SWE 444", name: "هندسة البرمجيات", time: "08:00", location: null }],
+        },
+      });
+
+    await expect(runToolInBrowser("get_final_exams")).resolves.toEqual({
+      ok: false,
+      error: "page_unreadable",
+    });
+  });
+
   it("checks every item of an array against the contract", async () => {
     state.sendMessage = (_tabId, _message, callback) =>
       callback({

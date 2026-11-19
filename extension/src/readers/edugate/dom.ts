@@ -54,21 +54,27 @@ export function decimalNumber(value: string): number | null {
   return NUMBER.test(text) ? Number(text) : null;
 }
 
-/** The column of each heading, keyed by its whitespace-normalised text. */
+/**
+ * The column of each heading, keyed by its whitespace-normalised text. Only the table's own
+ * header row counts: a layout table that merely wraps the real one has no headings of its own.
+ */
 export function columnIndexes(
   table: Element,
   headingClass: string,
 ): Map<string, number> {
   const indexes = new Map<string, number>();
 
-  table.querySelectorAll(`thead th.${headingClass}`).forEach((heading, index) => {
-    const text = textOf(heading);
+  table
+    .querySelectorAll(`:scope > thead > tr > th.${headingClass}`)
+    .forEach((heading, index) => {
+      const text = textOf(heading);
 
-    if (text && !indexes.has(text)) {
-      indexes.set(text, index);
-    }
-  });
+      if (text && !indexes.has(text)) {
+        indexes.set(text, index);
+      }
+    });
 
+  return indexes;
   return indexes;
 }
 

@@ -34,5 +34,19 @@
       "lates": "مجموع التأخير",
       "percent": "نسبة الغياب"
     }
+  },
+  "finalExams": {
+    "headings": {
+      "code": "رمز المقرر",
+      "name": "اسم المقرر",
+      "day": "يوم الاختبار",
+      "time": "وقت الاختبار",
+      "date": "تاريخ الاختبار"
+    },
+    "locationHeading": "مكان الاختبار",
+    "locationParts": ["الوحدة", "المبنى", "الطابق", "الجناح", "القاعة"],
+    "roomTableIdSuffix": ":roomTable",
+    "emptyPart": "---",
+    "locationSeparator": " - "
   }
 }

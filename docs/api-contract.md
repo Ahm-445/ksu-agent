@@ -100,7 +100,7 @@ for that tool in the [Phase 2 page map](phase2-page-map.md).
 | `get_grades` | `grades` | [Course results](phase2-page-map.md#course-results-get_grades) | `{ "term": "...", "courses": [ { "code": "...", "name": "...", "grade": "..." } ] }` |
 | `get_lms_grades` | `grades` | [LMS grades](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "grade": "..." } ] }` — `grade` may be `null` |
 | `get_schedule` | `schedule` | [Class schedule](phase2-page-map.md#class-schedule-get_schedule) | `{ "term": "...", "classes": [ { "code": "...", "name": "...", "activity": "...", "section": "...", "days": [1, 3], "start": "08:00", "end": "08:50" } ] }` |
-| `get_final_exams` | `schedule` | [Final exams](phase2-page-map.md#final-exams-get_final_exams) | `{ "exams": [ { "code": "...", "name": "...", "date": "...", "time": "...", "location": "..." } ] }` |
+| `get_final_exams` | `schedule` | [Final exams](phase2-page-map.md#final-exams-get_final_exams) | `{ "exams": [ { "code": "...", "name": "...", "day": "الثلاثاء", "date": "6-07-1448", "time": "08:00", "location": "..." } ] }` — `day`, `date` and `location` may be `null` |
 | `get_absences` | `attendance` | [Absences](phase2-page-map.md#absences-get_absences) | `{ "courses": [ { "code": "...", "name": "...", "absence_percent": 12.5, "absences": 3, "lates": 1 } ] }` |
 | `get_plan_progress` | `plan` | [Study plan](phase2-page-map.md#study-plan-get_plan_progress) | `{ "completed_hours": 0, "remaining_hours": 0, "remaining_courses": [ { "code": "...", "name": "...", "hours": 3, "group": "...", "level": "..." } ] }` |
 | `get_courses` | `lms` | [LMS course list](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "code": "..." } ] }` — `code` may be `null` |
@@ -120,6 +120,11 @@ Reading rules:
   hours and percentages are numbers. The absences page prints `نسبة الغياب` without the
   % sign (`11.86`); the number is returned as shown, between 0 and 100.
 - `due_at` is an ISO 8601 timestamp with the KSU offset (`+03:00`).
+- `get_final_exams`: `day` is the Arabic weekday as shown, `date` the Hijri date as shown
+  (`6-07-1448`, never converted), and `time` is 24-hour `HH:MM`. `day` and `date` are
+  `null` while the exam is not scheduled yet. `location` joins the non-empty parts of
+  الوحدة/المبنى/الطابق/الجناح/القاعة with ` - `, and is `null` when every part is empty
+  or `---`.
 - A missing table or heading is reported as `page_unreadable`; no value is ever
   guessed.
 

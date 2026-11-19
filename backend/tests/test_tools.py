@@ -25,6 +25,14 @@ PERSONAL = {
         "what is my gpa",
         "Can you tell me my cumulative GPA?",
     ],
+    "get_final_exams": [
+        "اختباراتي النهائية",
+        "متى اختباراتي؟",
+        "وش اختباراتنا النهائية",
+        "متى الفاينل؟",
+        "my final exams",
+        "when is my final exam?",
+    ],
     "get_absences": [
         "غيابي",
         "كم نسبة غيابي؟",

@@ -119,6 +119,24 @@ describe("the Edugate content script", () => {
     ]);
   });
 
+  it("fetches the final exams page for get_final_exams", async () => {
+    const sendResponse = vi.fn();
+
+    state.listener?.(
+      { kind: "read", tool: "get_final_exams" },
+      { id: "extension-id" },
+      sendResponse,
+    );
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "page_unreadable" });
+    });
+
+    expect(state.fetched).toEqual([
+      "https://edugate.ksu.edu.sa/ksu/ui/student/final_exams/index/forwardFinalExams.faces",
+    ]);
+  });
+
   it("reports not_logged_in when a fetched page is the login form", async () => {
     const sendResponse = vi.fn();
 
