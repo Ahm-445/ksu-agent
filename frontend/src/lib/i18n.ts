@@ -1,4 +1,4 @@
-import type { Category } from "@/lib/extension";
+import type { Category, Source } from "@/lib/extension";
 
 export type Lang = "ar" | "en";
 
@@ -123,14 +123,15 @@ export type Dictionary = {
     newMessages: string;
     personalNote: string;
     categories: Record<Category, string>;
+    toolSources: Record<Source, string>;
     errors: {
       unavailable: string;
       invalid: string;
-      extensionMissing: string;
+      extensionMissingFor: string;
       consentMissing: string;
       consentMissingFor: string;
-      notSignedIn: string;
-      readFailed: string;
+      notSignedInFor: string;
+      readFailedFor: string;
     };
     empty: {
       greeting: string;
@@ -305,14 +306,18 @@ const ar: Dictionary = {
       plan: "الخطة الدراسية",
       lms: "مقررات LMS",
     },
+    toolSources: {
+      edugate: "Edugate",
+      lms: "البلاك بورد",
+    },
     errors: {
       unavailable: "تعذر الاتصال بالخادم، حاول مرة أخرى.",
       invalid: "تعذر معالجة هذه الرسالة. جرّب صياغتها بشكل مختلف.",
-      extensionMissing: "ثبّت إضافة KSU Agent لتقرأ معدلك من Edugate.",
+      extensionMissingFor: "ثبّت إضافة KSU Agent لتقرأ بياناتك من {source}.",
       consentMissing: "افتح الإضافة واسمح بقراءة البيانات التي تحتاجها.",
       consentMissingFor: "افتح إضافة KSU Agent واسمح بقراءة «{category}».",
-      notSignedIn: "افتح Edugate أو أعد تحميل صفحته في هذا المتصفح ثم سجّل الدخول.",
-      readFailed: "تعذر قراءة صفحة Edugate، حاول مرة أخرى.",
+      notSignedInFor: "افتح {source} أو أعد تحميل صفحته في هذا المتصفح ثم سجّل الدخول.",
+      readFailedFor: "تعذر قراءة بياناتك من {source}، حاول مرة أخرى.",
     },
     empty: {
       greeting: "مرحبًا {name}، كيف أقدر أساعدك؟",
@@ -494,14 +499,18 @@ const en: Dictionary = {
       plan: "study plan",
       lms: "LMS courses",
     },
+    toolSources: {
+      edugate: "Edugate",
+      lms: "the LMS (Blackboard)",
+    },
     errors: {
       unavailable: "Could not reach the server, please try again.",
       invalid: "This message could not be processed. Try rewording it.",
-      extensionMissing: "Install the KSU Agent extension to read your GPA from Edugate.",
+      extensionMissingFor: "Install the KSU Agent extension to read your data from {source}.",
       consentMissing: "Open the extension and allow the data it needs.",
       consentMissingFor: "Open the KSU Agent extension and allow «{category}».",
-      notSignedIn: "Open or reload Edugate in this browser and log in.",
-      readFailed: "Could not read your Edugate page, please try again.",
+      notSignedInFor: "Open or reload {source} in this browser and log in.",
+      readFailedFor: "Could not read your data from {source}, please try again.",
     },
     empty: {
       greeting: "Hi {name}, how can I help?",

@@ -7,13 +7,16 @@ import {
   type FinalExamsData,
   type GradesData,
   type GpaData,
+  type LmsGradeItem,
   type LmsGradesData,
   type PlanProgressData,
   type RemainingCourse,
   type ScheduleData,
+  type Source,
   type ToolData,
   type ToolErrorKind,
 } from "@/lib/extension";
+import { sourceOfTool } from "@/lib/extension";
 
 // Factual answers about the student's own data are built here, in the browser, from
 // fixed templates (ADR 0001). The values are filled in and never leave the device.
@@ -100,6 +103,9 @@ const PLAN_TEMPLATES: Record<
 // The type column's word for a course the student must take, from the plan page.
 const MANDATORY_TYPES = ["إجباري", "اجباري"];
 
+// A tool the website does not know still reads Edugate, the source of most tools.
+const DEFAULT_SOURCE: Source = "edugate";
+
 function isMandatory(course: RemainingCourse): boolean {
   return MANDATORY_TYPES.includes(course.type);
 }
@@ -168,19 +174,39 @@ const ASSIGNMENTS_TEMPLATES: Record<
 
 const LMS_GRADES_TEMPLATES: Record<
   Lang,
-  { intro: string; course: string; none: string; notRecorded: string }
+  {
+    intro: string;
+    course: string;
+    item: string;
+    score: string;
+    scoreOnly: string;
+    pending: string;
+    missing: string;
+    none: string;
+    join: string;
+  }
 > = {
   ar: {
-    intro: "درجاتك في LMS:",
-    course: "{name}: {grade}",
-    none: "لا توجد مقررات لك في LMS هذا الفصل.",
-    notRecorded: "لم تُرصد بعد",
+    intro: "درجاتك في البلاك بورد:",
+    course: "{course}: {items}",
+    item: "{title} {grade}",
+    score: "{score} من {possible}",
+    scoreOnly: "{score}",
+    pending: "قيد التصحيح",
+    missing: "لم تُرصد بعد",
+    none: "لا توجد درجات لك في البلاك بورد هذا الفصل.",
+    join: "، ",
   },
   en: {
-    intro: "Your LMS grades:",
-    course: "{name}: {grade}",
-    none: "No LMS courses are listed for this term.",
-    notRecorded: "not recorded yet",
+    intro: "Your grades on the LMS:",
+    course: "{course}: {items}",
+    item: "{title} {grade}",
+    score: "{score} out of {possible}",
+    scoreOnly: "{score}",
+    pending: "being graded",
+    missing: "not recorded yet",
+    none: "No grades are listed on the LMS this term.",
+    join: ", ",
   },
 };
 
@@ -397,7 +423,30 @@ export function assignmentsAnswer(data: AssignmentsData, lang: Lang): string {
   );
 }
 
-/** The LMS grades, one line per course, with the not-recorded-yet case spelled out. */
+/** One grade item as the student reads it: the score, the status, or not recorded yet. */
+function lmsGradeText(
+  item: LmsGradeItem,
+  templates: (typeof LMS_GRADES_TEMPLATES)[Lang],
+): string {
+  if (item.status === "needs_grading") {
+    return templates.pending;
+  }
+
+  if (item.score === null) {
+    return templates.missing;
+  }
+
+  const score = String(item.score);
+
+  return item.possible === null
+    ? fill(templates.scoreOnly, { score })
+    : fill(templates.score, { score, possible: String(item.possible) });
+}
+
+/**
+ * The LMS grades, one line per course and one entry per graded column: the LMS has no
+ * course total, so the items are what the student's grade is made of.
+ */
 export function lmsGradesAnswer(data: LmsGradesData, lang: Lang): string {
   const templates = LMS_GRADES_TEMPLATES[lang];
 
@@ -405,16 +454,21 @@ export function lmsGradesAnswer(data: LmsGradesData, lang: Lang): string {
     return templates.none;
   }
 
-  return sentence(
-    templates.intro,
-    data.courses.map((course) =>
-      fill(templates.course, {
-        name: course.name,
-        grade: course.grade ?? templates.notRecorded,
-      }),
-    ),
-    lang,
+  const courses = data.courses.map((course) =>
+    fill(templates.course, {
+      course: course.code === null ? course.name : `${course.code} ${course.name}`,
+      items: course.items
+        .map((item) =>
+          fill(templates.item, {
+            title: item.title,
+            grade: lmsGradeText(item, templates),
+          }),
+        )
+        .join(templates.join),
+    }),
   );
+
+  return `${templates.intro} ${courses.join(lang === "ar" ? "؛ " : "; ")}.`;
 }
 
 /**
@@ -451,28 +505,29 @@ export function personalAnswer(
 }
 
 export type ToolErrorKey =
-  | "extensionMissing"
+  | "extensionMissingFor"
   | "consentMissing"
-  | "notSignedIn"
-  | "readFailed";
+  | "notSignedInFor"
+  | "readFailedFor";
 
 /** The message key for a failed tool run: what the student can do about it. */
 export function toolErrorKey(error: ToolErrorKind): ToolErrorKey {
   switch (error) {
     case "not_installed":
-      return "extensionMissing";
+      return "extensionMissingFor";
     case "no_consent":
       return "consentMissing";
     case "not_logged_in":
-      return "notSignedIn";
+      return "notSignedInFor";
     default:
-      return "readFailed";
+      return "readFailedFor";
   }
 }
 
 /**
  * The message for a failed tool run. When the student has not allowed the category
- * the tool needs, the message names that category.
+ * the tool needs, the message names that category; otherwise it names the site the tool
+ * reads, so a question about the LMS never sends the student to Edugate.
  */
 export function toolErrorText(
   t: Dictionary,
@@ -490,5 +545,8 @@ export function toolErrorText(
       : t.chat.errors.consentMissing;
   }
 
-  return t.chat.errors[toolErrorKey(error)];
+  return t.chat.errors[toolErrorKey(error)].replace(
+    "{source}",
+    t.chat.toolSources[sourceOfTool(tool) ?? DEFAULT_SOURCE],
+  );
 }
