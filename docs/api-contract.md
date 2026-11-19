@@ -97,12 +97,12 @@ for that tool in the [Phase 2 page map](phase2-page-map.md).
 | Tool | Consent category | Source page | Returns exactly |
 | :--- | :--- | :--- | :--- |
 | `get_gpa` | `grades` | [Academic record](phase2-page-map.md#academic-record-get_gpa) | `{ "cumulative_gpa": "4.21", "scale": "5", "earned_hours": 96, "registered_hours": 99, "as_of_term": "الفصل الأول 1448/1449" }` |
-| `get_grades` | `grades` | [Course results](phase2-page-map.md#course-results-get_grades) | `{ "term": "...", "courses": [ { "code": "...", "name": "...", "grade": "..." } ] }` |
+| `get_grades` | `grades` | [Course results](phase2-page-map.md#course-results-get_grades) | `{ "term": "...", "courses": [ { "code": "...", "name": "...", "grade": "..." } ] }` — `grade` may be `null` |
 | `get_lms_grades` | `grades` | [LMS grades](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "grade": "..." } ] }` — `grade` may be `null` |
 | `get_schedule` | `schedule` | [Class schedule](phase2-page-map.md#class-schedule-get_schedule) | `{ "term": "...", "classes": [ { "code": "...", "name": "...", "activity": "...", "section": "...", "days": [1, 3], "start": "08:00", "end": "08:50" } ] }` |
-| `get_final_exams` | `schedule` | [Final exams](phase2-page-map.md#final-exams-get_final_exams) | `{ "exams": [ { "code": "...", "name": "...", "date": "...", "time": "...", "location": "..." } ] }` |
+| `get_final_exams` | `schedule` | [Final exams](phase2-page-map.md#final-exams-get_final_exams) | `{ "exams": [ { "code": "...", "name": "...", "day": "الثلاثاء", "date": "6-07-1448", "time": "08:00", "location": "..." } ] }` — `day`, `date` and `location` may be `null` |
 | `get_absences` | `attendance` | [Absences](phase2-page-map.md#absences-get_absences) | `{ "courses": [ { "code": "...", "name": "...", "absence_percent": 12.5, "absences": 3, "lates": 1 } ] }` |
-| `get_plan_progress` | `plan` | [Study plan](phase2-page-map.md#study-plan-get_plan_progress) | `{ "completed_hours": 0, "remaining_hours": 0, "remaining_courses": [ { "code": "...", "name": "...", "hours": 3, "group": "...", "level": "..." } ] }` |
+| `get_plan_progress` | `plan` | [Study plan](phase2-page-map.md#study-plan-get_plan_progress) | `{ "completed_hours": 0, "remaining_hours": 0, "remaining_courses": [ { "code": "...", "name": "...", "hours": 3, "group": "...", "type": "...", "level": "..." } ] }` — `group` is the requirement group's title and `type` its نوع المجموعة as shown |
 | `get_courses` | `lms` | [LMS course list](phase2-page-map.md#lms-blackboard-ultra) | `{ "courses": [ { "name": "...", "code": "..." } ] }` — `code` may be `null` |
 | `get_assignments` | `lms` | [LMS due dates](phase2-page-map.md#lms-blackboard-ultra) | `{ "items": [ { "title": "...", "course": "...", "due_at": "2026-11-21T23:59:00+03:00" } ] }` |
 
@@ -117,8 +117,37 @@ Reading rules:
   Edugate page** (the page map says the number-to-day mapping must be verified before
   release).
 - Numbers that Edugate shows as text stay strings (`cumulative_gpa`, `scale`); counts,
-  hours and percentages are numbers.
+  hours and percentages are numbers. The absences page prints `نسبة الغياب` without the
+  % sign (`11.86`); the number is returned as shown, between 0 and 100.
 - `due_at` is an ISO 8601 timestamp with the KSU offset (`+03:00`).
+- `get_grades`: the page opens on the current term, where every grade is still empty;
+  `term` is the option the selector shows. An empty grade cell and the not-recorded mark
+  `ت` are both `null`, and the answer says the grades for that term are not recorded yet
+  when all of them are `null`. The selector is never submitted: only the shown term is read.
+- `get_schedule`: the page shows 12-hour times with ص/م; `start` and `end` are converted
+  to 24-hour `HH:MM` (`01:00 م` -> `13:00`, `12:00 م` -> `12:00`, `12:05 ص` -> `00:05`).
+  One `classes` entry per slot: a course that meets twice is two entries. The lecturer and
+  the room are never read.
+- `get_final_exams`: `day` is the Arabic weekday as shown, `date` the Hijri date as shown
+  (`6-07-1448`, never converted), and `time` is 24-hour `HH:MM`. `day` and `date` are
+  `null` while the exam is not scheduled yet. `location` joins the non-empty parts of
+  الوحدة/المبنى/الطابق/الجناح/القاعة with ` - `, and is `null` when every part is empty
+  or `---`.
+- `get_plan_progress`: the two plan pages are split per requirement group, and the remaining
+  page lists **every option** of each elective group (a six-hour group can list about twenty
+  courses), so its rows are never summed. `completed_hours` is the sum of الساعات over the
+  completed rows. Per group, matched by title across the two pages, the hours still needed are
+  `max(the hours of its إجباري rows on the remaining page, N - completed)` where N is the
+  group's `عدد الساعات` and `completed` the hours of that group on the completed page;
+  `remaining_hours` is the sum over the groups. A student can exceed N with electives while a
+  mandatory course is still missing (a four-hour group with six elective hours completed and a
+  two-hour إجباري course still remaining needs two more hours, not zero). `group` is the group
+  title as shown and `type` its نوع المجموعة as shown; both pages are fetched in the same
+  session, and either one failing is the matching error.
+- Five Edugate pages (final exams, schedule, course results, both study plan pages) answer a
+  GET with a forward stub. The extension replays that stub's own form once, to the same
+  URL; see [Forward pages](phase2-page-map.md#forward-pages). A page that is still a stub
+  after that one replay is `page_unreadable`.
 - A missing table or heading is reported as `page_unreadable`; no value is ever
   guessed.
 
@@ -151,7 +180,7 @@ Error codes (`error`, snake_case):
 | :--- | :--- |
 | `no_consent` | The student has not allowed this category. |
 | `not_logged_in` | The student is not signed in to Edugate or LMS in this browser. |
-| `page_unreadable` | The expected table or heading was not found. |
+| `page_unreadable` | The expected table or heading was not found, or the page could not be reached in the session. |
 | `unknown_tool` | No such tool. |
 | `timeout` | No result within 20 seconds. |
 | `bad_request` | The message is malformed or missing a required field. |
@@ -164,6 +193,8 @@ Security rules:
 - `categories_allowed` lists category names only, never data.
 - The website shows "open the extension to allow <category>" on `no_consent`, and
   "log in to Edugate/LMS in this browser" on `not_logged_in`.
+- The extension sends no request to KSU other than GET page reads and the replay of
+  Edugate's own auto-submitted navigation form, to the same URL, once.
 
 ### Privacy guarantees
 

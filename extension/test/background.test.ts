@@ -309,11 +309,269 @@ describe("runToolInBrowser", () => {
   });
 
   it("answers page_unreadable for a tool without a reader", async () => {
-    await expect(runToolInBrowser("get_grades")).resolves.toEqual({
+    await expect(runToolInBrowser("get_courses")).resolves.toEqual({
       ok: false,
       error: "page_unreadable",
     });
     expect(state.sent).toEqual([]);
+  });
+
+  it("keeps only the absences contract fields of each course", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          courses: [
+            {
+              code: "SWE 444",
+              name: "هندسة البرمجيات",
+              absence_percent: 11.86,
+              absences: 3,
+              lates: 1,
+              lecturer: "اسم المحاضر",
+              room: "A/1",
+            },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_absences")).resolves.toEqual({
+      ok: true,
+      data: {
+        courses: [
+          {
+            code: "SWE 444",
+            name: "هندسة البرمجيات",
+            absence_percent: 11.86,
+            absences: 3,
+            lates: 1,
+          },
+        ],
+      },
+    });
+  });
+
+  it("keeps the final exam contract fields and their null cases", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          exams: [
+            {
+              code: "SWE 444",
+              name: "هندسة البرمجيات",
+              day: null,
+              date: null,
+              time: "08:00",
+              location: null,
+              lecturer: "اسم المحاضر",
+            },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_final_exams")).resolves.toEqual({
+      ok: true,
+      data: {
+        exams: [
+          {
+            code: "SWE 444",
+            name: "هندسة البرمجيات",
+            day: null,
+            date: null,
+            time: "08:00",
+            location: null,
+          },
+        ],
+      },
+    });
+  });
+
+  it("reports page_unreadable when a nullable final exam field is missing", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          exams: [{ code: "SWE 444", name: "هندسة البرمجيات", time: "08:00", location: null }],
+        },
+      });
+
+    await expect(runToolInBrowser("get_final_exams")).resolves.toEqual({
+      ok: false,
+      error: "page_unreadable",
+    });
+  });
+
+  it("keeps the schedule contract fields and drops a lecturer name", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          term: "الفصل الأول 1448/1449",
+          classes: [
+            {
+              code: "SWE 444",
+              name: "هندسة البرمجيات",
+              activity: "محاضرة",
+              section: "12345",
+              days: [1, 3],
+              start: "08:00",
+              end: "08:50",
+              lecturer: "اسم المحاضر",
+              room: "A/1",
+            },
+          ],
+        },
+      });
+
+    const result = await runToolInBrowser("get_schedule");
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        term: "الفصل الأول 1448/1449",
+        classes: [
+          {
+            code: "SWE 444",
+            name: "هندسة البرمجيات",
+            activity: "محاضرة",
+            section: "12345",
+            days: [1, 3],
+            start: "08:00",
+            end: "08:50",
+          },
+        ],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("اسم المحاضر");
+  });
+
+  it("reports page_unreadable when a day is not a number", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          term: "الفصل الأول 1448/1449",
+          classes: [
+            {
+              code: "SWE 444",
+              name: "هندسة البرمجيات",
+              activity: "محاضرة",
+              section: "12345",
+              days: ["1", 3],
+              start: "08:00",
+              end: "08:50",
+            },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_schedule")).resolves.toEqual({
+      ok: false,
+      error: "page_unreadable",
+    });
+  });
+
+  it("keeps a null grade and drops a lecturer name from the grades result", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          term: "الفصل الأول 1448/1449",
+          courses: [
+            { code: "SWE 444", name: "هندسة البرمجيات", grade: null, lecturer: "اسم المحاضر" },
+          ],
+        },
+      });
+
+    const result = await runToolInBrowser("get_grades");
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        term: "الفصل الأول 1448/1449",
+        courses: [{ code: "SWE 444", name: "هندسة البرمجيات", grade: null }],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("اسم المحاضر");
+  });
+
+  it("reports page_unreadable when a grade is a number", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          term: "الفصل الأول 1448/1449",
+          courses: [{ code: "SWE 444", name: "هندسة البرمجيات", grade: 95 }],
+        },
+      });
+
+    await expect(runToolInBrowser("get_grades")).resolves.toEqual({
+      ok: false,
+      error: "page_unreadable",
+    });
+  });
+
+  it("keeps the plan progress contract fields and drops an extra key", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          completed_hours: 107,
+          remaining_hours: 45,
+          remaining_courses: [
+            {
+              code: "SWE 444",
+              name: "هندسة البرمجيات",
+              hours: 3,
+              group: "متطلبات الجامعة",
+              type: "إجباري",
+              level: "الأول",
+              lecturer: "اسم المحاضر",
+            },
+          ],
+          student_name: "طالب",
+        },
+      });
+
+    const result = await runToolInBrowser("get_plan_progress");
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        completed_hours: 107,
+        remaining_hours: 45,
+        remaining_courses: [
+          {
+            code: "SWE 444",
+            name: "هندسة البرمجيات",
+            hours: 3,
+            group: "متطلبات الجامعة",
+            type: "إجباري",
+            level: "الأول",
+          },
+        ],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("اسم المحاضر");
+  });
+
+  it("checks every item of an array against the contract", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          courses: [
+            { code: "SWE 444", name: "أ", absence_percent: 1, absences: 1, lates: 0 },
+            { code: "SWE 445", name: "ب", absence_percent: "2", absences: 1, lates: 0 },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_absences")).resolves.toEqual({
+      ok: false,
+      error: "page_unreadable",
+    });
   });
 });
 

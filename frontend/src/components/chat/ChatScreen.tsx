@@ -16,7 +16,7 @@ import {
   type ChatMessage,
 } from "@/lib/chatStorage";
 import { runTool } from "@/lib/extension";
-import { gpaAnswer, toolErrorText } from "@/lib/personalAnswers";
+import { personalAnswer, toolErrorText } from "@/lib/personalAnswers";
 
 function createId(): string {
   try {
@@ -107,10 +107,12 @@ export function ChatScreen() {
       setPending(false);
 
       if (outcome.ok) {
+        const answer = personalAnswer(tool, outcome.data, lang);
+
         appendMessage({
           id: createId(),
           role: "assistant",
-          text: gpaAnswer(outcome.data, lang),
+          text: answer ?? toolErrorText(t, "page_unreadable", tool),
           note: t.chat.personalNote,
           personal: true,
           status: "ok",

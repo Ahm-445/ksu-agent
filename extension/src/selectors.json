@@ -17,10 +17,105 @@
     "cumulative": "تراكمي"
   },
   "termLabel": {
-    "semesters": ["الأول", "الثاني", "الصيفي"],
+    "semesters": [
+      "الأول",
+      "الثاني",
+      "الصيفي"
+    ],
     "pattern": "الفصل\\s+(?<semester>{semesters})\\s+(?<year>[0-9]{4})/[0-9]{4}"
   },
   "login": {
     "formId": "loginForm"
+  },
+  "forward": {
+    "clickPattern": "getElementById\\(\\s*(?<quote>['\"])(?<linkId>[^'\"]+)\\k<quote>\\s*\\)\\.onclick\\(\\)",
+    "loadFunction": "loadService"
+  },
+  "tables": {
+    "headingClass": "HEADING"
+  },
+  "absences": {
+    "headings": {
+      "code": "رمز المقرر",
+      "name": "اسم المقرر",
+      "absences": "مجموع الغياب",
+      "lates": "مجموع التأخير",
+      "percent": "نسبة الغياب"
+    }
+  },
+  "finalExams": {
+    "headings": {
+      "code": "رمز المقرر",
+      "name": "اسم المقرر",
+      "day": "يوم الاختبار",
+      "time": "وقت الاختبار",
+      "date": "تاريخ الاختبار"
+    },
+    "locationHeading": "مكان الاختبار",
+    "locationParts": [
+      "الوحدة",
+      "المبنى",
+      "الطابق",
+      "الجناح",
+      "القاعة"
+    ],
+    "roomTableIdSuffix": ":roomTable",
+    "emptyPart": "---",
+    "locationSeparator": " - "
+  },
+  "schedule": {
+    "tableId": "myForm:studScheduleTable",
+    "termSelectId": "myForm:selectSemester",
+    "headings": {
+      "code": "رمز المقرر",
+      "name": "اسم المقرر",
+      "activity": "النشاط",
+      "section": "الشعبة",
+      "dayTime": "اليوم الوقت",
+      "sectionType": "نوع الشعبة",
+      "details": "التفاصيل"
+    },
+    "periods": {
+      "am": [
+        "ص",
+        "AM"
+      ],
+      "pm": [
+        "م",
+        "PM"
+      ]
+    }
+  },
+  "grades": {
+    "tableId": "myForm:courseTable",
+    "termSelectId": "myForm:selectSemester",
+    "headings": {
+      "code": "رمز المقرر",
+      "name": "اسم المقرر",
+      "grade": "التقدير"
+    },
+    "notRecorded": [
+      "ت"
+    ]
+  },
+  "plan": {
+    "completedTableId": "myForm:takenPlanTable",
+    "remainingTableId": "myForm:remainPlanTable",
+    "groupHeaderIdSuffix": ":headerArray",
+    "dataTableClass": "responsiveDataTable",
+    "headings": {
+      "code": "رمز المقرر",
+      "name": "اسم المقرر",
+      "hours": "الساعات",
+      "type": "نوع المجموعة",
+      "level": "المستوى"
+    },
+    "groupHoursLabel": "عدد الساعات",
+    "groupHoursPattern": "\\(([0-9]+)\\)\\s*$",
+    "groupSeparators": "-–:",
+    "mandatoryTypes": [
+      "إجباري",
+      "اجباري"
+    ]
   }
 }
