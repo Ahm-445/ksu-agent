@@ -1,3 +1,4 @@
+import { keepContractFields } from "./contract.js";
 import { handleMessage, type ToolOutcome } from "./handler.js";
 import {
   isRecord,
@@ -15,8 +16,8 @@ const store = createStore(chrome.storage.local);
 // fetches it in the student's own Edugate session.
 const EDUGATE_TAB_QUERY = { url: "https://edugate.ksu.edu.sa/*" };
 
-// The only tool with a page reader in this step; the rest are added one at a time.
-const TOOLS_WITH_READER: readonly ToolName[] = ["get_gpa"];
+// Every tool with a page reader in this step. The LMS tools come later.
+const TOOLS_WITH_READER: readonly ToolName[] = ["get_gpa", "get_absences"];
 
 const READ_TIMEOUT_MS = 20_000;
 
@@ -95,33 +96,6 @@ function askTab(tabId: number, tool: ToolName): Promise<AskResult> {
       );
     });
   });
-}
-
-/**
- * The contract fields of one tool, and only those: a value the contract does not list
- * is dropped, and a missing or mistyped one makes the page unreadable.
- */
-function keepContractFields(
-  tool: ToolName,
-  data: Record<string, unknown>,
-): Record<string, unknown> | null {
-  if (tool !== "get_gpa") {
-    return null;
-  }
-
-  const { cumulative_gpa, scale, earned_hours, registered_hours, as_of_term } = data;
-
-  if (
-    typeof cumulative_gpa !== "string" ||
-    typeof scale !== "string" ||
-    typeof earned_hours !== "number" ||
-    typeof registered_hours !== "number" ||
-    typeof as_of_term !== "string"
-  ) {
-    return null;
-  }
-
-  return { cumulative_gpa, scale, earned_hours, registered_hours, as_of_term };
 }
 
 /**

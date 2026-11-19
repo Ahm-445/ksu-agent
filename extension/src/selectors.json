@@ -22,5 +22,17 @@
   },
   "login": {
     "formId": "loginForm"
+  },
+  "tables": {
+    "headingClass": "HEADING"
+  },
+  "absences": {
+    "headings": {
+      "code": "رمز المقرر",
+      "name": "اسم المقرر",
+      "absences": "مجموع الغياب",
+      "lates": "مجموع التأخير",
+      "percent": "نسبة الغياب"
+    }
   }
 }

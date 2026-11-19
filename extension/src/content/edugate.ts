@@ -1,53 +1,99 @@
 // The content script of the Edugate pages, bundled by esbuild into one classic script.
 //
-// It reads the transcript page in the student's own session and answers with the fields
-// a tool needs. It never sends the page, never sends anything else, and writes nothing
-// to storage.
+// It reads the pages a tool needs in the student's own session and answers with the
+// fields that tool needs. It never sends the page, never sends anything else, and writes
+// nothing to storage. Every page is fetched with a same-origin GET: no form is posted.
 
+import { readAbsences, type AbsenceData } from "../readers/edugate/absences.js";
 import { isEdugateLoginPage, readGpa, type GpaData } from "../readers/edugate/gpa.js";
 
-const TRANSCRIPT_URL =
-  "https://edugate.ksu.edu.sa/ksu/ui/student/student_transcript/index/studentTranscriptAllIndex.faces";
+const EDUGATE = "https://edugate.ksu.edu.sa";
+
+// The pages each tool reads, from docs/phase2-page-map.md. The study plan is split
+// over two pages: the completed courses and the remaining ones.
+const TOOL_PAGES: Readonly<Record<string, readonly string[]>> = {
+  get_gpa: [
+    `${EDUGATE}/ksu/ui/student/student_transcript/index/studentTranscriptAllIndex.faces`,
+  ],
+  get_absences: [
+    `${EDUGATE}/ksu/ui/student/student_absences/index/courseAbsencesIndex.faces`,
+  ],
+};
+
+type ReadData = GpaData | AbsenceData;
 
 type ReadReply =
-  | { ok: true; data: GpaData }
+  | { ok: true; data: ReadData }
   | { ok: false; error: "not_logged_in" | "page_unreadable" };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function readTranscript(): Promise<ReadReply> {
+async function fetchPage(url: string): Promise<Document | "not_logged_in" | null> {
   let page: Response;
 
   try {
-    page = await fetch(TRANSCRIPT_URL, { credentials: "same-origin" });
+    page = await fetch(url, { credentials: "same-origin" });
   } catch {
-    return { ok: false, error: "not_logged_in" };
+    return "not_logged_in";
   }
 
   if (!page.ok) {
-    return { ok: false, error: "page_unreadable" };
+    return null;
   }
 
   const doc = new DOMParser().parseFromString(await page.text(), "text/html");
 
   // An expired session is redirected to the login form, which is still a 200.
-  if (isEdugateLoginPage(doc)) {
-    return { ok: false, error: "not_logged_in" };
+  return isEdugateLoginPage(doc) ? "not_logged_in" : doc;
+}
+
+function readFor(tool: string, pages: readonly Document[]): ReadData | null {
+  const page = pages[0];
+
+  if (page === undefined) {
+    return null;
   }
 
-  const data = readGpa(doc);
+  switch (tool) {
+    case "get_gpa":
+      return readGpa(page);
+    case "get_absences":
+      return readAbsences(page);
+    default:
+      return null;
+  }
+}
+
+async function readTool(tool: string): Promise<ReadReply> {
+  const urls = TOOL_PAGES[tool];
+
+  if (urls === undefined) {
+    return { ok: false, error: "page_unreadable" };
+  }
+
+  const pages: Document[] = [];
+
+  for (const url of urls) {
+    const page = await fetchPage(url);
+
+    if (page === "not_logged_in") {
+      return { ok: false, error: "not_logged_in" };
+    }
+
+    if (page === null) {
+      return { ok: false, error: "page_unreadable" };
+    }
+
+    pages.push(page);
+  }
+
+  const data = readFor(tool, pages);
 
   return data === null
     ? { ok: false, error: "page_unreadable" }
     : { ok: true, data };
-}
-
-async function respondTo(tool: string): Promise<ReadReply> {
-  return tool === "get_gpa"
-    ? readTranscript()
-    : { ok: false, error: "page_unreadable" };
 }
 
 chrome.runtime.onMessage.addListener(
@@ -63,7 +109,7 @@ chrome.runtime.onMessage.addListener(
 
     const tool = typeof message.tool === "string" ? message.tool : "";
 
-    void respondTo(tool).then(sendResponse);
+    void readTool(tool).then(sendResponse);
 
     return true;
   },

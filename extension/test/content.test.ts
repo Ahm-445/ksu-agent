@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Listener = (
@@ -6,9 +7,15 @@ type Listener = (
   sendResponse: (reply: unknown) => void,
 ) => boolean | undefined;
 
-const state: { listener?: Listener; fetchFails: boolean; fetched: string[] } = {
+const state: {
+  listener?: Listener;
+  fetchFails: boolean;
+  fetched: string[];
+  html: string;
+} = {
   fetchFails: false,
   fetched: [],
+  html: "<html></html>",
 };
 
 vi.stubGlobal("chrome", {
@@ -29,15 +36,15 @@ vi.stubGlobal("fetch", async (url: string) => {
     throw new Error("network down");
   }
 
-  return { ok: true, text: async () => "<html></html>" };
+  return { ok: true, text: async () => state.html };
 });
 
 await import("../src/content/edugate.js");
-
 describe("the Edugate content script", () => {
   beforeEach(() => {
     state.fetchFails = false;
     state.fetched = [];
+    state.html = "<html></html>";
   });
 
   it("answers nothing to a message from a page or another extension", () => {
@@ -85,12 +92,46 @@ describe("the Edugate content script", () => {
   it("reports page_unreadable for a tool that has no reader", async () => {
     const sendResponse = vi.fn();
 
-    state.listener?.({ kind: "read", tool: "get_grades" }, { id: "extension-id" }, sendResponse);
+    state.listener?.({ kind: "read", tool: "get_courses" }, { id: "extension-id" }, sendResponse);
 
     await vi.waitFor(() => {
       expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "page_unreadable" });
     });
 
     expect(state.fetched).toEqual([]);
+  });
+
+  it("fetches the absences page for get_absences", async () => {
+    const sendResponse = vi.fn();
+
+    state.listener?.(
+      { kind: "read", tool: "get_absences" },
+      { id: "extension-id" },
+      sendResponse,
+    );
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "page_unreadable" });
+    });
+
+    expect(state.fetched).toEqual([
+      "https://edugate.ksu.edu.sa/ksu/ui/student/student_absences/index/courseAbsencesIndex.faces",
+    ]);
+  });
+
+  it("reports not_logged_in when a fetched page is the login form", async () => {
+    const sendResponse = vi.fn();
+
+    state.html = '<html><body><form id="loginForm"></form></body></html>';
+
+    state.listener?.(
+      { kind: "read", tool: "get_absences" },
+      { id: "extension-id" },
+      sendResponse,
+    );
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: false, error: "not_logged_in" });
+    });
   });
 });

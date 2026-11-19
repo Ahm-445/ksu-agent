@@ -1,29 +1,39 @@
 """Detection of questions about the student's own data — no model, no I/O.
 
 `detect_personal_tool` decides which tool the website should run. It must fire only
-for a question about the student's *own* GPA: the regulation questions that talk
-about "المعدل التراكمي" in general must stay ordinary answers.
+for a question about the student's *own* data: the regulation questions that talk
+about "المعدل التراكمي" or "شروط الحرمان" in general must stay ordinary answers.
 """
 
 import pytest
 
 from app.tools import detect_personal_tool
 
-PERSONAL = [
-    "ما معدلي؟",
-    "كم معدلي التراكمي؟",
-    "وش معدلي",
-    "أبغى أعرف معدلي",
-    "ما هو معدلي التراكمي",
-    "معدلي هذا الفصل",
-    "مَعدَلي",
-    "مـعـدلـي",
-    "What is my GPA?",
-    "my cumulative gpa",
-    "MY GPA",
-    "what is my gpa",
-    "Can you tell me my cumulative GPA?",
-]
+PERSONAL = {
+    "get_gpa": [
+        "ما معدلي؟",
+        "كم معدلي التراكمي؟",
+        "وش معدلي",
+        "أبغى أعرف معدلي",
+        "ما هو معدلي التراكمي",
+        "معدلي هذا الفصل",
+        "مَعدَلي",
+        "مـعـدلـي",
+        "What is my GPA?",
+        "my cumulative gpa",
+        "MY GPA",
+        "what is my gpa",
+        "Can you tell me my cumulative GPA?",
+    ],
+    "get_absences": [
+        "غيابي",
+        "كم نسبة غيابي؟",
+        "وش غيابي في المواد؟",
+        "غيابنا هذا الفصل",
+        "my absences",
+        "what is my absence percentage?",
+    ],
+}
 
 REGULATION = [
     "كم المعدل المطلوب للتخرج؟",
@@ -33,16 +43,22 @@ REGULATION = [
     "ما هو الإنذار الأكاديمي؟",
     "كم مدة الفصل الصيفي؟",
     "ما هي شروط التخرج؟",
+    "ما شروط الحرمان؟",
+    "كم نسبة الغياب المسموحة؟",
     "how is the GPA calculated?",
     "what is the minimum GPA to graduate?",
     "what is the cumulative GPA requirement?",
     "when is the final exam?",
+    "how many absences are allowed?",
 ]
 
 
-@pytest.mark.parametrize("message", PERSONAL)
-def test_a_question_about_the_students_own_gpa_is_get_gpa(message):
-    assert detect_personal_tool(message) == "get_gpa"
+@pytest.mark.parametrize(
+    ("message", "tool"),
+    [(message, tool) for tool, messages in PERSONAL.items() for message in messages],
+)
+def test_a_question_about_the_students_own_data_is_its_tool(message, tool):
+    assert detect_personal_tool(message) == tool
 
 
 @pytest.mark.parametrize("message", REGULATION)
@@ -55,7 +71,7 @@ def test_an_empty_question_is_not_a_tool():
     assert detect_personal_tool("   ") is None
 
 
-def test_a_question_about_other_personal_data_is_not_get_gpa_yet():
-    """Only the GPA tool exists in this step; grades and schedule come later."""
-    assert detect_personal_tool("وش درجاتي؟") is None
+def test_a_question_about_personal_data_without_a_reader_is_not_a_tool_yet():
+    """Grades, schedule, exams and the plan come in the next commits."""
+    assert detect_personal_tool("وش جدولي؟") is None
     assert detect_personal_tool("what are my grades?") is None

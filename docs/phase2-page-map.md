@@ -54,9 +54,14 @@ from it yet.
 
 ### Absences (`get_absences`)
 
-- Table `…:warningTable.responsiveDataTable`. Headings: `رمز المقرر`, `اسم المقرر`,
-  `الشعبة`, `النشاط`, `المقر`, `مجموع الغياب`, `مجموع التأخير`, `نسبة الغياب`.
-- `نسبة الغياب` is a percentage (`76%`).
+- The page carries **two tables**. `…:warningTable` has only three headings
+  (`رمز المقرر`, `اسم المقرر` and an unlabelled percentage) and is **not** the source.
+- The source is the summary table (`…:absenceSummationTable` on the real page), whose
+  headings include `رمز المقرر`, `اسم المقرر`, `الشعبة`, `النشاط`, `المقر`, `مجموع الغياب`,
+  `مجموع التأخير` and `نسبة الغياب`. A reader finds it by those headings, not by
+  the id.
+- `نسبة الغياب` is a percentage shown **without** the % sign on the real page
+  (`11.86`); both forms are accepted and returned as a number.
 
 ### Study plan (`get_plan_progress`)
 

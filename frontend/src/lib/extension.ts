@@ -160,6 +160,19 @@ export type GpaData = {
   as_of_term: string;
 };
 
+export type AbsenceCourse = {
+  code: string;
+  name: string;
+  absence_percent: number;
+  absences: number;
+  lates: number;
+};
+
+export type AbsencesData = { courses: AbsenceCourse[] };
+
+/** The fields of one tool result, from the API contract's tool catalogue. */
+export type ToolData = GpaData | AbsencesData;
+
 export type ToolErrorKind =
   | "not_installed"
   | "no_consent"
@@ -168,7 +181,7 @@ export type ToolErrorKind =
   | "timeout";
 
 export type ToolResult =
-  | { ok: true; data: GpaData; readAt: string }
+  | { ok: true; data: ToolData; readAt: string }
   | { ok: false; error: ToolErrorKind };
 
 const TOOL_ERRORS: readonly ToolErrorKind[] = [
@@ -190,39 +203,71 @@ function createRequestId(): string {
   return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function isGpaData(value: unknown): value is GpaData {
-  if (typeof value !== "object" || value === null) {
+  if (!isRecord(value)) {
     return false;
   }
 
-  const data = value as Record<string, unknown>;
-
   return (
-    typeof data.cumulative_gpa === "string" &&
-    typeof data.scale === "string" &&
-    typeof data.earned_hours === "number" &&
-    typeof data.registered_hours === "number" &&
-    typeof data.as_of_term === "string"
+    typeof value.cumulative_gpa === "string" &&
+    typeof value.scale === "string" &&
+    typeof value.earned_hours === "number" &&
+    typeof value.registered_hours === "number" &&
+    typeof value.as_of_term === "string"
   );
 }
 
-function parseToolResult(value: unknown): ToolResult | null {
-  if (typeof value !== "object" || value === null) {
+function isAbsenceCourse(value: unknown): value is AbsenceCourse {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.code === "string" &&
+    typeof value.name === "string" &&
+    typeof value.absence_percent === "number" &&
+    typeof value.absences === "number" &&
+    typeof value.lates === "number"
+  );
+}
+
+function isAbsencesData(value: unknown): value is AbsencesData {
+  return isRecord(value) && Array.isArray(value.courses) && value.courses.every(isAbsenceCourse);
+}
+
+/** The guard for the fields each tool returns; a tool without one is unreadable. */
+const TOOL_DATA: Readonly<Record<string, (value: unknown) => boolean>> = {
+  get_gpa: isGpaData,
+  get_absences: isAbsencesData,
+};
+
+function parseToolResult(value: unknown, tool: string): ToolResult | null {
+  if (!isRecord(value)) {
     return null;
   }
 
-  const response = value as Record<string, unknown>;
+  const response = value;
 
   if (response.kind !== "tool_result") {
     return null;
   }
 
   if (response.ok === true) {
-    if (typeof response.read_at !== "string" || !isGpaData(response.data)) {
+    const guard = TOOL_DATA[tool];
+
+    if (
+      typeof response.read_at !== "string" ||
+      guard === undefined ||
+      !guard(response.data)
+    ) {
       return null;
     }
 
-    return { ok: true, data: response.data, readAt: response.read_at };
+    return { ok: true, data: response.data as ToolData, readAt: response.read_at };
   }
 
   if (response.ok === false) {
@@ -311,5 +356,7 @@ export async function runTool(tool: string): Promise<ToolResult> {
     return { ok: false, error: "timeout" };
   }
 
-  return parseToolResult(answer.value) ?? { ok: false, error: "page_unreadable" };
+  return (
+    parseToolResult(answer.value, tool) ?? { ok: false, error: "page_unreadable" }
+  );
 }

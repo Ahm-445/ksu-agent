@@ -309,11 +309,64 @@ describe("runToolInBrowser", () => {
   });
 
   it("answers page_unreadable for a tool without a reader", async () => {
-    await expect(runToolInBrowser("get_grades")).resolves.toEqual({
+    await expect(runToolInBrowser("get_courses")).resolves.toEqual({
       ok: false,
       error: "page_unreadable",
     });
     expect(state.sent).toEqual([]);
+  });
+
+  it("keeps only the absences contract fields of each course", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          courses: [
+            {
+              code: "SWE 444",
+              name: "هندسة البرمجيات",
+              absence_percent: 11.86,
+              absences: 3,
+              lates: 1,
+              lecturer: "اسم المحاضر",
+              room: "A/1",
+            },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_absences")).resolves.toEqual({
+      ok: true,
+      data: {
+        courses: [
+          {
+            code: "SWE 444",
+            name: "هندسة البرمجيات",
+            absence_percent: 11.86,
+            absences: 3,
+            lates: 1,
+          },
+        ],
+      },
+    });
+  });
+
+  it("checks every item of an array against the contract", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({
+        ok: true,
+        data: {
+          courses: [
+            { code: "SWE 444", name: "أ", absence_percent: 1, absences: 1, lates: 0 },
+            { code: "SWE 445", name: "ب", absence_percent: "2", absences: 1, lates: 0 },
+          ],
+        },
+      });
+
+    await expect(runToolInBrowser("get_absences")).resolves.toEqual({
+      ok: false,
+      error: "page_unreadable",
+    });
   });
 });
 

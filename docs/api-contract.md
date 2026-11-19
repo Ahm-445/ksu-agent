@@ -117,7 +117,8 @@ Reading rules:
   Edugate page** (the page map says the number-to-day mapping must be verified before
   release).
 - Numbers that Edugate shows as text stay strings (`cumulative_gpa`, `scale`); counts,
-  hours and percentages are numbers.
+  hours and percentages are numbers. The absences page prints `نسبة الغياب` without the
+  % sign (`11.86`); the number is returned as shown, between 0 and 100.
 - `due_at` is an ISO 8601 timestamp with the KSU offset (`+03:00`).
 - A missing table or heading is reported as `page_unreadable`; no value is ever
   guessed.
