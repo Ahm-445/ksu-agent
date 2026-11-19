@@ -7,6 +7,8 @@ export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  note?: string;
+  personal?: boolean;
   citations?: Citation[];
   status: "ok" | "error";
   errorKind?: "invalid" | "server_unavailable";
@@ -56,7 +58,7 @@ function parseMessage(value: unknown): ChatMessage | null {
     return null;
   }
 
-  const { id, role, text, status, errorKind } = value;
+  const { id, role, text, note, personal, status, errorKind } = value;
 
   if (typeof id !== "string" || typeof text !== "string") {
     return null;
@@ -71,6 +73,14 @@ function parseMessage(value: unknown): ChatMessage | null {
   }
 
   const message: ChatMessage = { id, role, text, status };
+
+  if (typeof note === "string" && note) {
+    message.note = note;
+  }
+
+  if (personal === true) {
+    message.personal = true;
+  }
 
   if (errorKind === "invalid" || errorKind === "server_unavailable") {
     message.errorKind = errorKind;

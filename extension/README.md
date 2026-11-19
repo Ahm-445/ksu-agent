@@ -1,10 +1,11 @@
 # KSU Agent — Chrome extension
 
-Step 3 of the Phase 2 plan ([ADR 0001](../docs/adr/0001-phase2-data-access.md)). This is
-the skeleton: it answers the website's `ping`, holds the tool catalogue and the consent
-check, and reads **nothing** yet. The page readers arrive in Step 4.
+Step 4 of the Phase 2 plan ([ADR 0001](../docs/adr/0001-phase2-data-access.md)): the
+`get_gpa` slice. It answers the website's `ping`, holds the tool catalogue and the
+consent check, and reads the student's cumulative GPA from their own Edugate academic
+record page. The other eight tools still return `page_unreadable`.
 
-TypeScript, Manifest V3, no bundler. `tsc` compiles `src/` to `dist/` as ES modules.
+TypeScript, Manifest V3. `tsc` type-checks; esbuild bundles `src/` into `dist/`.
 
 ## Build
 
@@ -14,8 +15,11 @@ npm install
 npm run build
 ```
 
-`npm run build` runs `tsc` and writes `dist/`. The manifest loads `dist/background.js`,
-so build before loading the extension. `node_modules/` and `dist/` are git-ignored.
+`npm run build` deletes `dist/`, type-checks with `tsc --noEmit`, then bundles three
+files with esbuild: the content script and the popup as IIFE scripts, the service worker
+as an ES module. The content script is one self-contained file, so the extension needs no
+`web_accessible_resources` and Edugate pages cannot detect it. `node_modules/` and
+`dist/` are git-ignored.
 
 ## Test
 
@@ -24,8 +28,9 @@ cd extension
 npm test
 ```
 
-Vitest covers the pure message handler (`src/handler.ts`): origin checks, `ping`,
-`run_tool`, and malformed messages.
+Vitest covers the pure message handler (`src/handler.ts`), the service worker's tool
+runner, the content script's message plumbing, and the GPA reader against the fake
+academic record page in `test/fixtures/edugate/` (jsdom).
 
 ## Load it in Chrome
 
@@ -59,13 +64,21 @@ packaged and published. The website needs the ID in `NEXT_PUBLIC_EXTENSION_ID`.
 | `host_permissions`: `https://lms.ksu.edu.sa/*` | Same, for the LMS (Blackboard Ultra) pages. |
 | `externally_connectable`: `http://localhost:3000/*`, `https://ksu-agent-web.onrender.com/*` | Lets the KSU Agent website send messages to the extension. Every other origin is refused, and `sender.origin` is checked on every message. |
 
-There is no `cookies`, no `webRequest`, no `<all_urls>`, and no content script.
+There is no `cookies`, no `webRequest`, and no `<all_urls>`. The one content script runs
+on `https://edugate.ksu.edu.sa/*` only, and the extension declares no
+`web_accessible_resources`, so a page cannot ask the extension for its files.
 
 ## What it does today
 
 - Answers `{ "kind": "ping" }` from the KSU Agent website with
   `{ "kind": "pong", "version": "0.1.0", "categories_allowed": [] }`.
-- Answers `{ "kind": "run_tool" }` with `no_consent`, because consent is wired in Step 5.
+- Answers `{ "kind": "run_tool" }` with `no_consent` until the student allows the
+  category in the popup (one switch, grades only, until the full consent screen of
+  Step 5).
+- For an allowed `get_gpa`, asks the open Edugate tab's content script to read the
+  academic record page in the student's own session, and returns only the five contract
+  fields. No Edugate tab, no content script in it, or a page that does not match the page
+  map is reported as `not_logged_in` / `page_unreadable`, never guessed.
 - Never returns cookies, page HTML, or any field a tool does not list.
 
 The message shapes and error codes are in

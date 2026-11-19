@@ -1,44 +1,50 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ALLOWED_ORIGINS, VERSION } from "../src/config.js";
-import { handleMessage } from "../src/handler.js";
+import { handleMessage, type ToolRunner } from "../src/handler.js";
 import { TOOL_CATEGORIES, TOOL_NAMES } from "../src/protocol.js";
 
 const ORIGIN = "http://localhost:3000";
 const NO_CONSENT = { categoriesAllowed: [] as string[] };
 
+const NEVER_RUN: ToolRunner = async () => {
+  throw new Error("the tool runner must not be called");
+};
+
+const GPA = { cumulative_gpa: "4.31", scale: "5", earned_hours: 95, registered_hours: 98, as_of_term: "الفصل الأول 1447/1448" };
+
 describe("handleMessage origin check", () => {
-  it("sends nothing back to an origin that is not allowed", () => {
-    const response = handleMessage({ kind: "ping" }, "https://evil.example", NO_CONSENT);
+  it("sends nothing back to an origin that is not allowed", async () => {
+    const response = await handleMessage({ kind: "ping" }, "https://evil.example", NO_CONSENT, NEVER_RUN);
 
     expect(response).toBeNull();
   });
 
-  it("sends nothing back when the sender has no origin", () => {
-    const response = handleMessage({ kind: "ping" }, undefined, NO_CONSENT);
+  it("sends nothing back when the sender has no origin", async () => {
+    const response = await handleMessage({ kind: "ping" }, undefined, NO_CONSENT, NEVER_RUN);
 
     expect(response).toBeNull();
   });
 
-  it("answers on every allowed origin", () => {
+  it("answers on every allowed origin", async () => {
     for (const origin of ALLOWED_ORIGINS) {
-      expect(handleMessage({ kind: "ping" }, origin, NO_CONSENT)).not.toBeNull();
+      expect(await handleMessage({ kind: "ping" }, origin, NO_CONSENT, NEVER_RUN)).not.toBeNull();
     }
   });
 });
 
 describe("handleMessage ping", () => {
-  it("answers a ping with pong, the version and the allowed categories", () => {
-    expect(handleMessage({ kind: "ping" }, ORIGIN, NO_CONSENT)).toEqual({
+  it("answers a ping with pong, the version and the allowed categories", async () => {
+    expect(await handleMessage({ kind: "ping" }, ORIGIN, NO_CONSENT, NEVER_RUN)).toEqual({
       kind: "pong",
       version: VERSION,
       categories_allowed: [],
     });
   });
 
-  it("lists the categories the student has allowed", () => {
-    const response = handleMessage({ kind: "ping" }, ORIGIN, {
+  it("lists the categories the student has allowed", async () => {
+    const response = await handleMessage({ kind: "ping" }, ORIGIN, {
       categoriesAllowed: ["grades", "lms"],
-    });
+    }, NEVER_RUN);
 
     expect(response).toEqual({
       kind: "pong",
@@ -49,11 +55,12 @@ describe("handleMessage ping", () => {
 });
 
 describe("handleMessage run_tool", () => {
-  it("rejects an unknown tool", () => {
-    const response = handleMessage(
+  it("rejects an unknown tool", async () => {
+    const response = await handleMessage(
       { kind: "run_tool", request_id: "r-1", tool: "get_payroll", args: {} },
       ORIGIN,
       NO_CONSENT,
+      NEVER_RUN,
     );
 
     expect(response).toEqual({
@@ -64,11 +71,14 @@ describe("handleMessage run_tool", () => {
     });
   });
 
-  it.each(TOOL_NAMES)("asks for consent for %s", (tool) => {
-    const response = handleMessage(
+  it.each(TOOL_NAMES)("asks for consent for %s", async (tool) => {
+    const runTool = vi.fn<Parameters<ToolRunner>, ReturnType<ToolRunner>>();
+
+    const response = await handleMessage(
       { kind: "run_tool", request_id: "r-2", tool, args: {} },
       ORIGIN,
       NO_CONSENT,
+      runTool,
     );
 
     expect(response).toEqual({
@@ -77,6 +87,7 @@ describe("handleMessage run_tool", () => {
       ok: false,
       error: "no_consent",
     });
+    expect(runTool).not.toHaveBeenCalled();
   });
 
   it("maps every tool to a contract category", () => {
@@ -92,17 +103,60 @@ describe("handleMessage run_tool", () => {
     expect(TOOL_CATEGORIES.get_assignments).toBe("lms");
   });
 
-  it("does not block a tool whose category is allowed", () => {
-    const response = handleMessage(
+  it("runs a tool whose category the student allowed", async () => {
+    const runTool = vi.fn(async () => ({ ok: true as const, data: GPA }));
+
+    const response = await handleMessage(
       { kind: "run_tool", request_id: "r-3", tool: "get_gpa", args: {} },
       ORIGIN,
       { categoriesAllowed: ["grades"] },
+      runTool,
     );
 
-    expect(response).not.toEqual(
-      expect.objectContaining({ error: "no_consent" }),
-    );
+    expect(runTool).toHaveBeenCalledTimes(1);
+    expect(runTool).toHaveBeenCalledWith("get_gpa");
+    expect(response).toEqual({
+      kind: "tool_result",
+      request_id: "r-3",
+      ok: true,
+      data: GPA,
+      read_at: expect.any(String),
+    });
   });
+
+  it("stamps read_at with an ISO time", async () => {
+    const response = await handleMessage(
+      { kind: "run_tool", request_id: "r-4", tool: "get_gpa", args: {} },
+      ORIGIN,
+      { categoriesAllowed: ["grades"] },
+      async () => ({ ok: true, data: GPA }),
+    );
+
+    if (response === null || response.kind !== "tool_result" || !response.ok) {
+      throw new Error("expected a successful tool_result");
+    }
+
+    expect(response.read_at).toBe(new Date(response.read_at).toISOString());
+  });
+
+  it.each(["not_logged_in", "page_unreadable", "timeout"] as const)(
+    "passes a %s failure through unchanged",
+    async (error) => {
+      const response = await handleMessage(
+        { kind: "run_tool", request_id: "r-5", tool: "get_gpa", args: {} },
+        ORIGIN,
+        { categoriesAllowed: ["grades"] },
+        async () => ({ ok: false, error }),
+      );
+
+      expect(response).toEqual({
+        kind: "tool_result",
+        request_id: "r-5",
+        ok: false,
+        error,
+      });
+    },
+  );
 });
 
 describe("handleMessage malformed messages", () => {
@@ -111,64 +165,67 @@ describe("handleMessage malformed messages", () => {
     ["a string", "ping"],
     ["a number", 42],
     ["an array", []],
-  ])("rejects %s", (_label, message) => {
-    const response = handleMessage(message, ORIGIN, NO_CONSENT);
+  ])("rejects %s", async (_label, message) => {
+    const response = await handleMessage(message, ORIGIN, NO_CONSENT, NEVER_RUN);
 
     expect(response).toEqual({ kind: "tool_result", ok: false, error: "bad_request" });
   });
 
-  it("rejects a message with no kind", () => {
-    const response = handleMessage({ request_id: "r-4" }, ORIGIN, NO_CONSENT);
-
-    expect(response).toEqual({
-      kind: "tool_result",
-      request_id: "r-4",
-      ok: false,
-      error: "bad_request",
-    });
-  });
-
-  it("rejects an unknown kind", () => {
-    const response = handleMessage({ kind: "logout" }, ORIGIN, NO_CONSENT);
-
-    expect(response).toEqual({ kind: "tool_result", ok: false, error: "bad_request" });
-  });
-
-  it("rejects run_tool without a request_id", () => {
-    const response = handleMessage(
-      { kind: "run_tool", tool: "get_gpa", args: {} },
-      ORIGIN,
-      NO_CONSENT,
-    );
-
-    expect(response).toEqual({ kind: "tool_result", ok: false, error: "bad_request" });
-  });
-
-  it("rejects run_tool without a tool", () => {
-    const response = handleMessage(
-      { kind: "run_tool", request_id: "r-5", args: {} },
-      ORIGIN,
-      NO_CONSENT,
-    );
-
-    expect(response).toEqual({
-      kind: "tool_result",
-      request_id: "r-5",
-      ok: false,
-      error: "bad_request",
-    });
-  });
-
-  it("rejects run_tool whose args are not an object", () => {
-    const response = handleMessage(
-      { kind: "run_tool", request_id: "r-6", tool: "get_gpa", args: 3 },
-      ORIGIN,
-      NO_CONSENT,
-    );
+  it("rejects a message with no kind", async () => {
+    const response = await handleMessage({ request_id: "r-6" }, ORIGIN, NO_CONSENT, NEVER_RUN);
 
     expect(response).toEqual({
       kind: "tool_result",
       request_id: "r-6",
+      ok: false,
+      error: "bad_request",
+    });
+  });
+
+  it("rejects an unknown kind", async () => {
+    const response = await handleMessage({ kind: "logout" }, ORIGIN, NO_CONSENT, NEVER_RUN);
+
+    expect(response).toEqual({ kind: "tool_result", ok: false, error: "bad_request" });
+  });
+
+  it("rejects run_tool without a request_id", async () => {
+    const response = await handleMessage(
+      { kind: "run_tool", tool: "get_gpa", args: {} },
+      ORIGIN,
+      NO_CONSENT,
+      NEVER_RUN,
+    );
+
+    expect(response).toEqual({ kind: "tool_result", ok: false, error: "bad_request" });
+  });
+
+  it("rejects run_tool without a tool", async () => {
+    const response = await handleMessage(
+      { kind: "run_tool", request_id: "r-7", args: {} },
+      ORIGIN,
+      NO_CONSENT,
+      NEVER_RUN,
+    );
+
+    expect(response).toEqual({
+      kind: "tool_result",
+      request_id: "r-7",
+      ok: false,
+      error: "bad_request",
+    });
+  });
+
+  it("rejects run_tool whose args are not an object", async () => {
+    const response = await handleMessage(
+      { kind: "run_tool", request_id: "r-8", tool: "get_gpa", args: 3 },
+      ORIGIN,
+      NO_CONSENT,
+      NEVER_RUN,
+    );
+
+    expect(response).toEqual({
+      kind: "tool_result",
+      request_id: "r-8",
       ok: false,
       error: "bad_request",
     });

@@ -63,12 +63,19 @@ export async function mockSendMessage({
   const isEnglish = /[A-Za-z]/.test(message);
   const text = isEnglish ? ANSWERS.en : ANSWERS.ar;
 
+  // A question about the student's own GPA becomes a tool request, exactly as the
+  // backend answers it; the values are read from Edugate in the browser.
+  if (message.includes("معدلي") || /my\s+(cumulative\s+)?gpa/i.test(message)) {
+    return { ok: true, kind: "tool", tool: "get_gpa" };
+  }
+
   if (message.includes("#nosource")) {
-    return { ok: true, answer: text.withoutSource, citations: [] };
+    return { ok: true, kind: "answer", answer: text.withoutSource, citations: [] };
   }
 
   return {
     ok: true,
+    kind: "answer",
     answer: text.withSource,
     citations: [{ ...CITATION }],
   };

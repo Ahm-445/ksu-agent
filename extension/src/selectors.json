@@ -1,0 +1,22 @@
+{
+  "transcript": {
+    "tableId": "myForm:allTranscriptTable",
+    "termBlockIdPrefix": "myForm:allTranscriptTable:",
+    "termBlockIdSuffix": ":default",
+    "termLabelClass": "fontTextWhite",
+    "summaryTableClass": "responsiveDataTable",
+    "headingClass": "HEADING"
+  },
+  "headings": {
+    "registeredHours": "الساعات المسجلة",
+    "earnedHours": "الساعات المكتسبة",
+    "gpa": "المعدل"
+  },
+  "rows": {
+    "term": "فصلي",
+    "cumulative": "تراكمي"
+  },
+  "login": {
+    "formId": "loginForm"
+  }
+}

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
+from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.exception_handlers import request_validation_exception_handler
@@ -21,6 +22,7 @@ from pydantic import BaseModel, Field, field_validator
 
 import answer
 from app.auth.routes import require_user, router as auth_router
+from app.tools import detect_personal_tool
 
 LOGGER = logging.getLogger(__name__)
 
@@ -100,10 +102,23 @@ class CitationModel(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """The response body from docs/api-contract.md."""
+    """An answer from the regulation, in the contract's field order."""
 
+    type: Literal["answer"] = "answer"
     answer: str
     citations: list[CitationModel]
+
+
+class ToolResponse(BaseModel):
+    """A tool the website runs in the student's browser, in the contract's order.
+
+    The backend names the tool and nothing else: the values are read and kept on the
+    student's device (ADR 0001), so this body never carries them.
+    """
+
+    type: Literal["tool"] = "tool"
+    tool: str
+    args: dict[str, Any] = Field(default_factory=dict)
 
 
 @lru_cache
@@ -124,12 +139,25 @@ def get_client():
     return answer.make_client(get_config())
 
 
-@app.post("/chat", response_model=ChatResponse, dependencies=[Depends(require_user)])
-def chat(request: ChatRequest) -> ChatResponse:
-    """Answer one question from the regulation and cite the articles used.
+@app.post(
+    "/chat",
+    response_model=ChatResponse | ToolResponse,
+    dependencies=[Depends(require_user)],
+)
+def chat(request: ChatRequest) -> ChatResponse | ToolResponse:
+    """Answer one question: a tool request, or an answer from the regulation.
 
     Only for a signed-in student: require_user answers 401 before this runs.
     """
+    # A question about the student's own data becomes a tool request, and the values
+    # are read in their browser: no retrieval, no model, nothing personal here. Only
+    # the tool's name is logged — never the question, never a value.
+    tool = detect_personal_tool(request.message)
+
+    if tool is not None:
+        LOGGER.info("answered a question with the tool %s", tool)
+        return ToolResponse(tool=tool)
+
     # Built here rather than through Depends: FastAPI solves dependencies before
     # the request body, so a dependency would load the index and the model client
     # for a body it then rejects with a 422. Called after validation, a rejected

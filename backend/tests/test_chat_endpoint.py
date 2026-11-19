@@ -72,9 +72,21 @@ def test_answerable_question_returns_an_answer_with_citations(api):
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"answer", "citations"}
+    assert set(body) == {"type", "answer", "citations"}
+    assert body["type"] == "answer"
     assert "2,75" in body["answer"]
     assert body["citations"] == [{"title": TITLE, "article": 62, "url": URL}]
+
+
+def test_a_question_about_the_students_own_gpa_returns_the_tool(api):
+    """The backend picks the tool and returns it; the values are read in the browser."""
+    client, fake = api(content=reply(True, "x"))
+
+    response = client.post("/chat", json={"message": "ما معدلي؟", "session_id": "s-1"})
+
+    assert response.status_code == 200
+    assert response.json() == {"type": "tool", "tool": "get_gpa", "args": {}}
+    assert fake.calls == []
 
 
 def test_unsupported_question_returns_the_fallback_without_citations(api):
@@ -173,8 +185,37 @@ def test_the_response_carries_the_contract_fields_in_order(api):
 
     body = client.post("/chat", json={"message": QUESTION}).json()
 
-    assert list(body) == ["answer", "citations"]
+    assert list(body) == ["type", "answer", "citations"]
     assert list(body["citations"][0]) == ["title", "article", "url"]
+
+
+def test_a_personal_question_builds_neither_the_retriever_nor_the_model(api, monkeypatch):
+    """A tool request costs nothing: no index load, no model call, no retriever call."""
+    client, fake = api(content=reply(True, "x"))
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("a tool request must not reach retrieval or the model")
+
+    monkeypatch.setattr(main, "get_retriever", refuse)
+    monkeypatch.setattr(main, "get_client", refuse)
+
+    response = client.post("/chat", json={"message": "كم معدلي التراكمي؟"})
+
+    assert response.status_code == 200
+    assert response.json() == {"type": "tool", "tool": "get_gpa", "args": {}}
+    assert fake.calls == []
+
+
+def test_a_tool_request_logs_the_tool_and_never_the_question(api, caplog):
+    client, _fake = api(content=reply(True, "x"))
+    question = "ما معدلي التراكمي هذا الفصل؟"
+
+    with caplog.at_level("INFO", logger="app.main"):
+        client.post("/chat", json={"message": question})
+
+    assert "get_gpa" in caplog.text
+    assert question not in caplog.text
+    assert "معدلي" not in caplog.text
 
 
 # --- CORS ------------------------------------------------------------------
