@@ -5,7 +5,7 @@ import type { ToolName } from "./protocol.js";
 // reaches the website: every object is rebuilt with the listed keys only, and a missing
 // or mistyped field makes the page unreadable rather than a guess.
 
-type ScalarType = "string" | "number" | "string|null";
+type ScalarType = "string" | "number" | "string|null" | "number|null";
 
 type Field = ScalarType | { array: ScalarType | Fields };
 
@@ -85,6 +85,43 @@ const PLAN_PROGRESS: Fields = {
   },
 };
 
+const LMS_COURSES: Fields = {
+  courses: {
+    array: {
+      code: "string|null",
+      name: "string",
+      sections: { array: "string" },
+    },
+  },
+};
+
+const LMS_ASSIGNMENTS: Fields = {
+  items: {
+    array: {
+      title: "string",
+      course: "string",
+      due_at: "string",
+    },
+  },
+};
+
+const LMS_GRADES: Fields = {
+  courses: {
+    array: {
+      code: "string|null",
+      name: "string",
+      items: {
+        array: {
+          title: "string",
+          score: "number|null",
+          possible: "number|null",
+          status: "string",
+        },
+      },
+    },
+  },
+};
+
 /** Every tool with a page reader, and the contract fields that tool returns. */
 export const TOOL_SCHEMAS: Readonly<Partial<Record<ToolName, Fields>>> = {
   get_gpa: GPA,
@@ -93,6 +130,9 @@ export const TOOL_SCHEMAS: Readonly<Partial<Record<ToolName, Fields>>> = {
   get_schedule: SCHEDULE,
   get_grades: GRADES,
   get_plan_progress: PLAN_PROGRESS,
+  get_courses: LMS_COURSES,
+  get_assignments: LMS_ASSIGNMENTS,
+  get_lms_grades: LMS_GRADES,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -110,6 +150,8 @@ function keepScalar(type: ScalarType, value: unknown): unknown {
         : undefined;
     case "string|null":
       return typeof value === "string" || value === null ? value : undefined;
+    case "number|null":
+      return typeof value === "number" || value === null ? value : undefined;
   }
 }
 

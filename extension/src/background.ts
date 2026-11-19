@@ -12,19 +12,14 @@ import { createStore } from "./storage.js";
 
 const store = createStore(chrome.storage.local);
 
-// The academic record page, from docs/phase2-page-map.md. The content script
-// fetches it in the student's own Edugate session.
+// The pages each tool's content script reads, from docs/phase2-page-map.md. A tool runs in the
+// student's own session, on a tab that is already open.
 const EDUGATE_TAB_QUERY = { url: "https://edugate.ksu.edu.sa/*" };
+const LMS_TAB_QUERY = { url: "https://lms.ksu.edu.sa/*" };
 
-// Every tool with a page reader in this step. The LMS tools come later.
-const TOOLS_WITH_READER: readonly ToolName[] = [
-  "get_gpa",
-  "get_absences",
-  "get_final_exams",
-  "get_schedule",
-  "get_grades",
-  "get_plan_progress",
-];
+// The LMS builds its pages in the browser, so its readers call the LMS's own JSON API instead
+// of reading HTML.
+const LMS_TOOLS: readonly ToolName[] = ["get_courses", "get_assignments", "get_lms_grades"];
 
 const READ_TIMEOUT_MS = 20_000;
 
@@ -48,9 +43,9 @@ function isReadReply(value: unknown): value is ReadReply {
   return reply.ok === false && typeof reply.error === "string";
 }
 
-async function findEdugateTab(): Promise<number | null> {
+async function findTab(query: { url: string }): Promise<number | null> {
   try {
-    const tabs = await chrome.tabs.query(EDUGATE_TAB_QUERY);
+    const tabs = await chrome.tabs.query(query);
 
     for (const tab of tabs) {
       if (typeof tab.id === "number") {
@@ -106,15 +101,13 @@ function askTab(tabId: number, tool: ToolName): Promise<AskResult> {
 }
 
 /**
- * Runs one tool in the student's browser: asks the Edugate tab's content script,
- * which fetches the page in the student's session and returns the fields only.
+ * Runs one tool in the student's browser: asks the tab's content script, which reads the
+ * pages in the student's own session and returns the contract fields only.
  */
 export async function runToolInBrowser(tool: ToolName): Promise<ToolOutcome> {
-  if (!TOOLS_WITH_READER.includes(tool)) {
-    return { ok: false, error: "page_unreadable" };
-  }
-
-  const tabId = await findEdugateTab();
+  const tabId = await findTab(
+    LMS_TOOLS.includes(tool) ? LMS_TAB_QUERY : EDUGATE_TAB_QUERY,
+  );
 
   if (tabId === null) {
     return { ok: false, error: "not_logged_in" };

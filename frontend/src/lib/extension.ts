@@ -32,6 +32,27 @@ export function categoryOfTool(tool: string): Category | null {
   return Object.hasOwn(TOOL_CATEGORIES, tool) ? TOOL_CATEGORIES[tool] : null;
 }
 
+export const SOURCES = ["edugate", "lms"] as const;
+
+export type Source = (typeof SOURCES)[number];
+
+/** Where each tool reads from: its error text names that site, not the other one. */
+export const TOOL_SOURCES: Record<string, Source> = {
+  get_gpa: "edugate",
+  get_grades: "edugate",
+  get_schedule: "edugate",
+  get_final_exams: "edugate",
+  get_absences: "edugate",
+  get_plan_progress: "edugate",
+  get_courses: "lms",
+  get_assignments: "lms",
+  get_lms_grades: "lms",
+};
+
+export function sourceOfTool(tool: string): Source | null {
+  return Object.hasOwn(TOOL_SOURCES, tool) ? TOOL_SOURCES[tool] : null;
+}
+
 export type ExtensionStatus =
   | { installed: false }
   | { installed: true; version: string; categoriesAllowed: Category[] };
@@ -211,6 +232,33 @@ export type PlanProgressData = {
   remaining_courses: RemainingCourse[];
 };
 
+export type LmsCourse = { code: string | null; name: string; sections: string[] };
+
+export type CoursesData = { courses: LmsCourse[] };
+
+export type AssignmentItem = { title: string; course: string; due_at: string };
+
+export type AssignmentsData = { items: AssignmentItem[] };
+
+export const GRADE_STATUSES = ["graded", "needs_grading", "none"] as const;
+
+export type GradeStatus = (typeof GRADE_STATUSES)[number];
+
+export type LmsGradeItem = {
+  title: string;
+  score: number | null;
+  possible: number | null;
+  status: GradeStatus;
+};
+
+export type LmsGradeCourse = {
+  code: string | null;
+  name: string;
+  items: LmsGradeItem[];
+};
+
+export type LmsGradesData = { courses: LmsGradeCourse[] };
+
 /** The fields of one tool result, from the API contract's tool catalogue. */
 export type ToolData =
   | GpaData
@@ -218,7 +266,10 @@ export type ToolData =
   | FinalExamsData
   | ScheduleData
   | GradesData
-  | PlanProgressData;
+  | PlanProgressData
+  | CoursesData
+  | AssignmentsData
+  | LmsGradesData;
 
 export type ToolErrorKind =
   | "not_installed"
@@ -374,6 +425,66 @@ function isPlanProgressData(value: unknown): value is PlanProgressData {
   );
 }
 
+function isLmsCourse(value: unknown): value is LmsCourse {
+  return (
+    isRecord(value) &&
+    (typeof value.code === "string" || value.code === null) &&
+    typeof value.name === "string" &&
+    Array.isArray(value.sections) &&
+    value.sections.every((section) => typeof section === "string")
+  );
+}
+
+function isCoursesData(value: unknown): value is CoursesData {
+  return isRecord(value) && Array.isArray(value.courses) && value.courses.every(isLmsCourse);
+}
+
+function isAssignmentItem(value: unknown): value is AssignmentItem {
+  return (
+    isRecord(value) &&
+    typeof value.title === "string" &&
+    typeof value.course === "string" &&
+    typeof value.due_at === "string"
+  );
+}
+
+function isAssignmentsData(value: unknown): value is AssignmentsData {
+  return isRecord(value) && Array.isArray(value.items) && value.items.every(isAssignmentItem);
+}
+
+function isOptionalNumber(value: unknown): boolean {
+  return typeof value === "number" || value === null;
+}
+
+function isLmsGradeItem(value: unknown): value is LmsGradeItem {
+  return (
+    isRecord(value) &&
+    typeof value.title === "string" &&
+    isOptionalNumber(value.score) &&
+    isOptionalNumber(value.possible) &&
+    typeof value.status === "string" &&
+    (GRADE_STATUSES as readonly string[]).includes(value.status)
+  );
+}
+
+function isLmsGradeCourse(value: unknown): value is LmsGradeCourse {
+  return (
+    isRecord(value) &&
+    (typeof value.code === "string" || value.code === null) &&
+    typeof value.name === "string" &&
+    Array.isArray(value.items) &&
+    value.items.every(isLmsGradeItem)
+  );
+}
+
+function isLmsGradesData(value: unknown): value is LmsGradesData {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.courses) &&
+    value.courses.every(isLmsGradeCourse)
+  );
+}
+
 /** The guard for the fields each tool returns; a tool without one is unreadable. */
 const TOOL_DATA: Readonly<Record<string, (value: unknown) => boolean>> = {
   get_gpa: isGpaData,
@@ -382,6 +493,9 @@ const TOOL_DATA: Readonly<Record<string, (value: unknown) => boolean>> = {
   get_schedule: isScheduleData,
   get_grades: isGradesData,
   get_plan_progress: isPlanProgressData,
+  get_courses: isCoursesData,
+  get_assignments: isAssignmentsData,
+  get_lms_grades: isLmsGradesData,
 };
 
 function parseToolResult(value: unknown, tool: string): ToolResult | null {

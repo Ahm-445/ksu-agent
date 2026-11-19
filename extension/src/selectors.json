@@ -117,5 +117,14 @@
       "إجباري",
       "اجباري"
     ]
+  },
+  "lms": {
+    "origin": "https://lms.ksu.edu.sa",
+    "me": "/learn/api/v1/users/me",
+    "memberships": "/learn/api/v1/users/{id}/memberships",
+    "dueDates": "/learn/api/v1/calendars/dueDateCalendarItems",
+    "columns": "/learn/api/v1/courses/{id}/gradebook/columns",
+    "grades": "/learn/api/v1/courses/{id}/gradebook/grades",
+    "courseCodePattern": "^(?<subject>[A-Z]{2,5})(?<number>[0-9]{3})_(?<section>[0-9]+)_"
   }
 }

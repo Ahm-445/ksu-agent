@@ -62,6 +62,39 @@ PERSONAL = {
         "كم ساعة باقية على التخرج؟",
         "how many hours left",
     ],
+    "get_courses": [
+        "وش مقرراتي هذا الفصل؟",
+        "مقرراتي",
+        "أبغى أشوف مقرراتنا",
+        "ما مقرراتي في البلاك بورد؟",
+        "my courses",
+        "what are my lms courses?",
+        "my courses on LMS",
+    ],
+    "get_assignments": [
+        "وش واجباتي؟",
+        "واجباتي",
+        "واجباتي القادمة",
+        "ما الواجبات القادمة؟",
+        "وش علي تسليمات",
+        "متى تسليم الواجب",
+        "ايش المطلوب مني هالاسبوع",
+        "متى تسليماتي؟",
+        "my assignments",
+        "what is due this week?",
+        "what's due",
+        "upcoming assignments",
+    ],
+    "get_lms_grades": [
+        "درجاتي في البلاك بورد",
+        "وش درجاتي في lms؟",
+        "درجة الميدترم",
+        "درجات الواجبات",
+        "كم جبت في الكويز",
+        "my grades on blackboard",
+        "my lms grades",
+        "my LMS grades",
+    ],
 }
 
 REGULATION = [
@@ -81,6 +114,11 @@ REGULATION = [
     "what is the cumulative GPA requirement?",
     "when is the final exam?",
     "how many absences are allowed?",
+    "كيف أسجل في المقررات؟",
+    "ما هي سياسة الواجبات؟",
+    "كيف أسلم واجب في البلاك بورد؟",
+    "ما هي سياسة تأخير تسليم الواجبات؟",
+    "how do I submit an assignment?",
 ]
 
 
@@ -104,6 +142,40 @@ def test_an_empty_question_is_not_a_tool():
 
 def test_a_question_about_the_students_gpa_stays_its_own_tool():
     assert detect_personal_tool("ما معدلي") == "get_gpa"
+
+
+LMS_PHRASES = [
+    ("ما الواجبات القادمة؟", "get_assignments"),
+    ("وش علي تسليمات", "get_assignments"),
+    ("متى تسليم الواجب", "get_assignments"),
+    ("واجباتي", "get_assignments"),
+    ("ايش المطلوب مني هالاسبوع", "get_assignments"),
+    ("what's due", "get_assignments"),
+    ("upcoming assignments", "get_assignments"),
+    ("درجاتي في البلاك بورد", "get_lms_grades"),
+    ("درجة الميدترم", "get_lms_grades"),
+    ("درجات الواجبات", "get_lms_grades"),
+    ("كم جبت في الكويز", "get_lms_grades"),
+    ("my LMS grades", "get_lms_grades"),
+    ("ما مقرراتي في البلاك بورد؟", "get_courses"),
+    ("my courses on LMS", "get_courses"),
+    ("ما درجاتي؟", "get_grades"),
+    ("ما جدولي؟", "get_schedule"),
+    ("كيف أسلم واجب في البلاك بورد؟", None),
+    ("ما هي سياسة تأخير تسليم الواجبات؟", None),
+]
+
+
+@pytest.mark.parametrize(("message", "tool"), LMS_PHRASES)
+def test_each_lms_question_routes_to_its_own_tool(message, tool):
+    assert detect_personal_tool(message) == tool
+
+
+def test_a_question_about_the_students_own_lms_data_is_its_own_tool():
+    """The LMS tools answer from the LMS, not from Edugate."""
+    assert detect_personal_tool("درجاتي في البلاك بورد") == "get_lms_grades"
+    assert detect_personal_tool("my grades on blackboard") == "get_lms_grades"
+    assert detect_personal_tool("درجاتي") == "get_grades"
 
 
 def test_a_question_about_a_programmes_requirement_hours_is_not_a_tool():

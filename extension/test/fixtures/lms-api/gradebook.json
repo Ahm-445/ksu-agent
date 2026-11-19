@@ -1,0 +1,351 @@
+{
+  "_999_1": {
+    "columns": {
+      "results": [
+        {
+          "id": "_2001_1",
+          "columnName": "Project proposal",
+          "effectiveColumnName": "Project proposal",
+          "possible": 10,
+          "dueDate": "2026-11-21T20:59:00.000Z",
+          "visible": true,
+          "visibleInBook": true,
+          "gradesReleased": true,
+          "scorable": true,
+          "calculationType": "NON_CALCULATED",
+          "deleted": false,
+          "position": 1,
+          "gradebookCategory": {
+            "title": "Assignment"
+          }
+        },
+        {
+          "id": "_2002_1",
+          "columnName": "Sprint quiz",
+          "effectiveColumnName": "Sprint quiz",
+          "possible": 5,
+          "dueDate": "2026-11-23T06:30:00.000Z",
+          "visible": true,
+          "visibleInBook": true,
+          "gradesReleased": true,
+          "scorable": true,
+          "calculationType": "NON_CALCULATED",
+          "deleted": false,
+          "position": 2,
+          "gradebookCategory": {
+            "title": "Quiz"
+          }
+        },
+        {
+          "id": "_2003_1",
+          "columnName": "Midterm total",
+          "effectiveColumnName": "Midterm total",
+          "possible": 20,
+          "visible": true,
+          "visibleInBook": true,
+          "gradesReleased": true,
+          "scorable": true,
+          "calculationType": "CUSTOM",
+          "deleted": false,
+          "position": 3,
+          "gradebookCategory": {
+            "title": "Test"
+          }
+        }
+      ]
+    },
+    "grades": {
+      "results": [
+        {
+          "id": "_3001_1",
+          "columnId": "_2001_1",
+          "courseId": "_999_1",
+          "userId": "_999_0",
+          "pointsPossible": 10,
+          "status": "GRADED",
+          "manualStatus": "NONE",
+          "isExempt": false,
+          "isCorrupt": false,
+          "gradeScoreDesignation": "SCORE",
+          "displayGrade": {
+            "score": 8.5,
+            "isOverride": false,
+            "requiresSchemaKnowledgeToDisplay": false
+          },
+          "effectiveScore": 8.5,
+          "averageScore": 7.25,
+          "instructorFeedback": "Well argued."
+        },
+        {
+          "id": "_3002_1",
+          "columnId": "_2002_1",
+          "courseId": "_999_1",
+          "userId": "_999_0",
+          "pointsPossible": 5,
+          "status": "NEEDS_GRADING",
+          "manualStatus": "NONE",
+          "isExempt": false,
+          "isCorrupt": false,
+          "gradeScoreDesignation": "SCORE"
+        },
+        {
+          "id": "_3003_1",
+          "columnId": "_2003_1",
+          "courseId": "_999_1",
+          "userId": "_999_0",
+          "pointsPossible": 20,
+          "manualStatus": "NONE",
+          "isExempt": false,
+          "isCorrupt": false,
+          "gradeScoreDesignation": "SCORE",
+          "displayGrade": {
+            "score": 17,
+            "isOverride": false,
+            "requiresSchemaKnowledgeToDisplay": false
+          },
+          "manualGrade": "A",
+          "manualScore": 17
+        },
+        {
+          "id": "_3004_1",
+          "columnId": "_2001_1",
+          "courseId": "_999_1",
+          "userId": "_999_9",
+          "pointsPossible": 10,
+          "status": "GRADED",
+          "manualStatus": "NONE",
+          "isExempt": false,
+          "isCorrupt": false,
+          "gradeScoreDesignation": "SCORE",
+          "displayGrade": {
+            "score": 99.5,
+            "isOverride": false,
+            "requiresSchemaKnowledgeToDisplay": false
+          }
+        }
+      ]
+    }
+  },
+  "_999_2": {
+    "columns": {
+      "results": []
+    },
+    "grades": {
+      "results": []
+    }
+  },
+  "_999_3": {
+    "columns": {
+      "results": [
+        {
+          "id": "_2011_3",
+          "columnName": "Hidden quiz",
+          "effectiveColumnName": "Hidden quiz",
+          "possible": 5,
+          "visible": false,
+          "visibleInBook": false,
+          "gradesReleased": true,
+          "scorable": true,
+          "calculationType": "NON_CALCULATED",
+          "deleted": false,
+          "position": 1,
+          "gradebookCategory": {
+            "title": "Quiz"
+          }
+        },
+        {
+          "id": "_2012_3",
+          "columnName": "Deleted quiz",
+          "effectiveColumnName": "Deleted quiz",
+          "possible": 5,
+          "visible": true,
+          "visibleInBook": true,
+          "gradesReleased": true,
+          "scorable": true,
+          "calculationType": "NON_CALCULATED",
+          "deleted": true,
+          "position": 2,
+          "gradebookCategory": {
+            "title": "Quiz"
+          }
+        },
+        {
+          "id": "_2013_3",
+          "columnName": "Unreleased report",
+          "effectiveColumnName": "Unreleased report",
+          "possible": 10,
+          "visible": true,
+          "visibleInBook": true,
+          "gradesReleased": false,
+          "scorable": true,
+          "calculationType": "NON_CALCULATED",
+          "deleted": false,
+          "position": 3,
+          "gradebookCategory": {
+            "title": "Assignment"
+          }
+        },
+        {
+          "id": "_2014_3",
+          "columnName": "Lab task",
+          "effectiveColumnName": "Lab task (lab)",
+          "possible": 4,
+          "visible": true,
+          "visibleInBook": true,
+          "gradesReleased": true,
+          "scorable": true,
+          "calculationType": "NON_CALCULATED",
+          "deleted": false,
+          "position": 4,
+          "gradebookCategory": {
+            "title": "Assignment"
+          }
+        }
+      ]
+    },
+    "grades": {
+      "results": [
+        {
+          "id": "_3011_3",
+          "columnId": "_2011_3",
+          "courseId": "_999_3",
+          "userId": "_999_0",
+          "pointsPossible": 5,
+          "status": "GRADED",
+          "manualStatus": "NONE",
+          "isExempt": false,
+          "isCorrupt": false,
+          "gradeScoreDesignation": "SCORE",
+          "displayGrade": {
+            "score": 5.5,
+            "isOverride": false,
+            "requiresSchemaKnowledgeToDisplay": false
+          }
+        },
+        {
+          "id": "_3012_3",
+          "columnId": "_2012_3",
+          "courseId": "_999_3",
+          "userId": "_999_0",
+          "pointsPossible": 5,
+          "status": "GRADED",
+          "manualStatus": "NONE",
+          "isExempt": false,
+          "isCorrupt": false,
+          "gradeScoreDesignation": "SCORE",
+          "displayGrade": {
+            "score": 6.5,
+            "isOverride": false,
+            "requiresSchemaKnowledgeToDisplay": false
+          }
+        },
+        {
+          "id": "_3013_3",
+          "columnId": "_2013_3",
+          "courseId": "_999_3",
+          "userId": "_999_0",
+          "pointsPossible": 10,
+          "status": "GRADED",
+          "manualStatus": "NONE",
+          "isExempt": false,
+          "isCorrupt": false,
+          "gradeScoreDesignation": "SCORE",
+          "displayGrade": {
+            "score": 9.5,
+            "isOverride": false,
+            "requiresSchemaKnowledgeToDisplay": false
+          }
+        },
+        {
+          "id": "_3014_3",
+          "columnId": "_2014_3",
+          "courseId": "_999_3",
+          "userId": "_999_0",
+          "pointsPossible": 4,
+          "status": "GRADED",
+          "manualStatus": "NONE",
+          "isExempt": false,
+          "isCorrupt": false,
+          "gradeScoreDesignation": "SCORE",
+          "displayGrade": {
+            "score": 4,
+            "isOverride": false,
+            "requiresSchemaKnowledgeToDisplay": false
+          },
+          "effectiveScore": 4,
+          "averageScore": 3.4,
+          "instructorFeedback": "Keep it up."
+        }
+      ]
+    }
+  },
+  "_996_1": {
+    "columns": {
+      "results": [
+        {
+          "id": "_2021_1",
+          "columnName": "Essay draft",
+          "effectiveColumnName": "Essay draft",
+          "possible": 100,
+          "dueDate": "2026-11-20T20:59:00.000Z",
+          "visible": true,
+          "visibleInBook": true,
+          "gradesReleased": false,
+          "scorable": true,
+          "calculationType": "NON_CALCULATED",
+          "deleted": false,
+          "position": 1,
+          "gradebookCategory": {
+            "title": "Assignment"
+          }
+        }
+      ]
+    },
+    "grades": {
+      "results": [
+        {
+          "id": "_3021_1",
+          "columnId": "_2021_1",
+          "courseId": "_996_1",
+          "userId": "_999_0",
+          "pointsPossible": 100,
+          "status": "GRADED",
+          "manualStatus": "NONE",
+          "isExempt": false,
+          "isCorrupt": false,
+          "gradeScoreDesignation": "SCORE",
+          "displayGrade": {
+            "score": 88,
+            "isOverride": false,
+            "requiresSchemaKnowledgeToDisplay": false
+          }
+        }
+      ]
+    }
+  },
+  "_994_1": {
+    "columns": {
+      "results": [
+        {
+          "id": "_2031_1",
+          "columnName": "Discussion",
+          "effectiveColumnName": "Discussion",
+          "possible": 10,
+          "visible": true,
+          "visibleInBook": true,
+          "gradesReleased": true,
+          "scorable": true,
+          "calculationType": "NON_CALCULATED",
+          "deleted": false,
+          "position": 1,
+          "gradebookCategory": {
+            "title": "Discussion"
+          }
+        }
+      ]
+    },
+    "grades": {
+      "results": []
+    }
+  }
+}
