@@ -23,6 +23,71 @@ Edugate's host is `https://edugate.ksu.edu.sa`. `edugate/home.html` (the student
 home page) is kept as a fixture for detecting "logged in or not"; no tool reads data
 from it yet.
 
+## Forward pages
+
+Five of the Edugate pages above do not answer a GET with the page itself. The GET returns
+a small stub (about 850 bytes), and the page only arrives when that stub posts its own
+form back:
+
+- **Tools that use them:** `get_final_exams`, `get_schedule`, `get_grades`, and both
+  pages of `get_plan_progress` (taken and remaining plan).
+- **Tools that do not:** `get_gpa` and `get_absences` answer the real page on GET, so no
+  form is posted for them.
+
+The stub has this shape:
+
+```html
+<body onload="loadService()">
+  <form id="myForm" method="post" action="<same path>.faces" enctype="application/x-www-form-urlencoded">
+    <input type="hidden" name="myForm" value="myForm" />
+    <a id="myForm:serLinkFinalExams" href="#"
+       onclick="mojarra.jsfcljs(document.getElementById('myForm'),{…},'');return false"></a>
+    <input type="hidden" name="javax.faces.ViewState" value="…" />
+  </form>
+  <script>function loadService(){document.getElementById("myForm:serLinkFinalExams").onclick();}</script>
+</body>
+```
+
+The link id differs on every page — `myForm:serLinkFinalExams`,
+`myForm:takenPlanActionListener`, `myForm:remainPlanActionListener` — so it is **read
+from the stub's own script**, never assumed from a prefix.
+
+A page counts as a stub **only when all three of these hold**, so read-only holds by
+construction and not by luck:
+
+1. Its `<body onload>` calls `loadService()`; the name is `forward.loadFunction` in
+   `extension/src/selectors.json`.
+2. The link id comes from the body of `function loadService() { … }` and from nowhere else:
+   that function's body is extracted first, then `forward.clickPattern` (also in
+   `selectors.json`, accepting either quote) is applied to that body alone. A click anywhere
+   else is ignored — the study plan page (`forwardAllPlanIndex`) really does carry
+   `function callCommand() { … document.getElementById("myForm:checkCourseContentCmd").onclick(); }`,
+   and that is a user command, not a forward.
+3. It carries no table whose id starts with `myForm:` or `j_id`: a real data page is never a
+   stub. The menu tables are `menuForm:menuTable…`, so they never count.
+
+Anything else is a normal page, and nothing is posted.
+
+The replay rule (content script, `readPage`):
+
+1. Before posting, the form's action — resolved against the page that was just requested —
+   must be `https://edugate.ksu.edu.sa` and the **same pathname**. Any other origin or path
+   is `page_unreadable`, and nothing is sent.
+2. The form is posted **once**: `application/x-www-form-urlencoded`, made of every hidden
+   field of that form plus `<linkId>=<linkId>`, with `credentials: "same-origin"` and no other
+   header.
+3. **At most one hop.** A POST that comes back as a stub — tested by the same three
+   conditions — is `page_unreadable`. The login check runs on the stub and on the page behind
+   it, so an expired session is `not_logged_in` either way.
+4. The view state and the other form values are never stored, logged or returned; they only
+   travel back to the same Edugate URL they came from.
+5. Reads are serialised — one page read at a time — so two tools cannot interleave, and the
+   two study plan pages are read one after the other.
+
+Hand-written fixtures: `edugate/forward-stub.html` (final exams) and
+`edugate/forward-stub-plan.html` (study plan, relative action). They are not saved pages:
+the saved fixtures have their scripts and hidden form fields scrubbed out.
+
 ## Where the data sits
 
 ### Academic record (`get_gpa`)

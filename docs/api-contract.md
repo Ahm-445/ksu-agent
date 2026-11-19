@@ -144,6 +144,10 @@ Reading rules:
   two-hour إجباري course still remaining needs two more hours, not zero). `group` is the group
   title as shown and `type` its نوع المجموعة as shown; both pages are fetched in the same
   session, and either one failing is the matching error.
+- Five Edugate pages (final exams, schedule, course results, both study plan pages) answer a
+  GET with a forward stub. The extension replays that stub's own form once, to the same
+  URL; see [Forward pages](phase2-page-map.md#forward-pages). A page that is still a stub
+  after that one replay is `page_unreadable`.
 - A missing table or heading is reported as `page_unreadable`; no value is ever
   guessed.
 
@@ -176,7 +180,7 @@ Error codes (`error`, snake_case):
 | :--- | :--- |
 | `no_consent` | The student has not allowed this category. |
 | `not_logged_in` | The student is not signed in to Edugate or LMS in this browser. |
-| `page_unreadable` | The expected table or heading was not found. |
+| `page_unreadable` | The expected table or heading was not found, or the page could not be reached in the session. |
 | `unknown_tool` | No such tool. |
 | `timeout` | No result within 20 seconds. |
 | `bad_request` | The message is malformed or missing a required field. |
@@ -189,6 +193,8 @@ Security rules:
 - `categories_allowed` lists category names only, never data.
 - The website shows "open the extension to allow <category>" on `no_consent`, and
   "log in to Edugate/LMS in this browser" on `not_logged_in`.
+- The extension sends no request to KSU other than GET page reads and the replay of
+  Edugate's own auto-submitted navigation form, to the same URL, once.
 
 ### Privacy guarantees
 

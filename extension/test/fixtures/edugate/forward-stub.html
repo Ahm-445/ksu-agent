@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<!--
+  Hand-written: the forward stub Edugate answers a GET with on a "forward" page. It is
+  not saved from a real session — the saved fixtures have their scripts and hidden form
+  fields removed. The structure is real, the value is fake.
+-->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>Edugate</title>
+</head>
+<body onload="loadService()">
+<form id="myForm" method="post" action="https://edugate.ksu.edu.sa/ksu/ui/student/final_exams/index/forwardFinalExams.faces" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="myForm" value="myForm" />
+<a id="myForm:serLinkFinalExams" href="#" onclick="mojarra.jsfcljs(document.getElementById('myForm'),{'myForm:serLinkFinalExams':'myForm:serLinkFinalExams'},'');return false"></a>
+<input type="hidden" name="javax.faces.ViewState" id="j_id_id2:javax.faces.ViewState:0" value="FAKE-VIEWSTATE" />
+</form>
+<script>function loadService(){document.getElementById("myForm:serLinkFinalExams").onclick();}</script>
+</body>
+</html>

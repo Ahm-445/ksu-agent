@@ -27,6 +27,10 @@
   "login": {
     "formId": "loginForm"
   },
+  "forward": {
+    "clickPattern": "getElementById\\(\\s*(?<quote>['\"])(?<linkId>[^'\"]+)\\k<quote>\\s*\\)\\.onclick\\(\\)",
+    "loadFunction": "loadService"
+  },
   "tables": {
     "headingClass": "HEADING"
   },
