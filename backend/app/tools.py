@@ -80,25 +80,38 @@ _ARABIC_OWN_COURSES = re.compile(r"مقررات(?:ي|نا)(?![\u0621-\u064a])")
 # "my courses", "my lms courses".
 _ENGLISH_OWN_COURSES = re.compile(r"\bmy\s+(?:lms\s+)?courses\b")
 
-# "واجباتي" / "واجباتنا" / "تسليماتي" and the LMS's own "الواجبات المستحقة": what the
-# student still has to hand in. "ما هي سياسة الواجبات؟" is a regulation question.
+# "واجباتي" / "واجباتنا" / "تسليماتي", the LMS's own "الواجبات القادمة" and "الواجبات
+# المستحقة", and the student asking what is due: what they still have to hand in. The
+# regulation questions "ما هي سياسة الواجبات؟" and "سياسة تأخير تسليم الواجبات" are about
+# a policy, so "تسليم الواجب" only counts in the singular and with nothing after it.
 _ARABIC_OWN_ASSIGNMENTS = re.compile(
     r"واجبات(?:ي|نا)(?![\u0621-\u064a])"
-    r"|تسليمات(?:ي|نا)(?![\u0621-\u064a])"
+    r"|تسليمات(?:ي|نا)?(?![\u0621-\u064a])"
+    r"|الواجبات\s+القادم(?:ة|ه)?"
     r"|الواجبات\s+المستحق(?:ة|ه)?"
+    r"|تسليم\s+الواجب(?![\u0621-\u064a])"
+    r"|المطلوب\s+مني"
+    r"|واجبات\s+هالاسبوع"
 )
 
-# "my assignments", "my due dates", "what is due this week".
+# "my assignments", "my due dates", "what's due", "upcoming assignments".
 _ENGLISH_OWN_ASSIGNMENTS = re.compile(
     r"\bmy\s+(?:lms\s+)?assignments?\b"
     r"|\bmy\s+due\s+dates?\b"
-    r"|\bwhat\s+is\s+due\b"
+    r"|\bwhat(?:'s|\s+is)\s+due\b"
+    r"|\bupcoming\s+assignments?\b"
 )
 
-# The LMS gradebook, named either as "البلاك بورد" or as "lms". Without that name the
+# The LMS gradebook: named as "البلاك بورد" or "lms", or a single grade that only the
+# LMS's gradebook holds — a midterm, an assignment, a quiz. Without one of those the
 # question is about the Edugate course results, so "درجاتي" alone stays `get_grades`.
 _ARABIC_LMS_GRADES = re.compile(
     r"(?:درجات|علامات)(?:ي|نا)[^.?!]{0,20}(?:البلاك\s*بورد|بلاك\s*بورد|lms)"
+    r"|درجة\s+الميد\s*ترم"
+    r"|درجة\s+الميدتيرم"
+    r"|درجات\s+الواجبات"
+    r"|درجات\s+الكويزات?"
+    r"|جبت\s+في\s+(?:ال)?(?:كويز|اختبار|ميدترم|واجب)"
 )
 _ENGLISH_LMS_GRADES = re.compile(
     r"\bmy\s+(?:lms|blackboard)\s+grades\b"
