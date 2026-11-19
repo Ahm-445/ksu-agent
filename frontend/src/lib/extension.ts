@@ -211,6 +211,18 @@ export type PlanProgressData = {
   remaining_courses: RemainingCourse[];
 };
 
+export type LmsCourse = { code: string | null; name: string; sections: string[] };
+
+export type CoursesData = { courses: LmsCourse[] };
+
+export type AssignmentItem = { title: string; course: string; due_at: string };
+
+export type AssignmentsData = { items: AssignmentItem[] };
+
+export type LmsGradeCourse = { name: string; grade: string | null };
+
+export type LmsGradesData = { courses: LmsGradeCourse[] };
+
 /** The fields of one tool result, from the API contract's tool catalogue. */
 export type ToolData =
   | GpaData
@@ -218,7 +230,10 @@ export type ToolData =
   | FinalExamsData
   | ScheduleData
   | GradesData
-  | PlanProgressData;
+  | PlanProgressData
+  | CoursesData
+  | AssignmentsData
+  | LmsGradesData;
 
 export type ToolErrorKind =
   | "not_installed"
@@ -374,6 +389,49 @@ function isPlanProgressData(value: unknown): value is PlanProgressData {
   );
 }
 
+function isLmsCourse(value: unknown): value is LmsCourse {
+  return (
+    isRecord(value) &&
+    (typeof value.code === "string" || value.code === null) &&
+    typeof value.name === "string" &&
+    Array.isArray(value.sections) &&
+    value.sections.every((section) => typeof section === "string")
+  );
+}
+
+function isCoursesData(value: unknown): value is CoursesData {
+  return isRecord(value) && Array.isArray(value.courses) && value.courses.every(isLmsCourse);
+}
+
+function isAssignmentItem(value: unknown): value is AssignmentItem {
+  return (
+    isRecord(value) &&
+    typeof value.title === "string" &&
+    typeof value.course === "string" &&
+    typeof value.due_at === "string"
+  );
+}
+
+function isAssignmentsData(value: unknown): value is AssignmentsData {
+  return isRecord(value) && Array.isArray(value.items) && value.items.every(isAssignmentItem);
+}
+
+function isLmsGradeCourse(value: unknown): value is LmsGradeCourse {
+  return (
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    (typeof value.grade === "string" || value.grade === null)
+  );
+}
+
+function isLmsGradesData(value: unknown): value is LmsGradesData {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.courses) &&
+    value.courses.every(isLmsGradeCourse)
+  );
+}
+
 /** The guard for the fields each tool returns; a tool without one is unreadable. */
 const TOOL_DATA: Readonly<Record<string, (value: unknown) => boolean>> = {
   get_gpa: isGpaData,
@@ -382,6 +440,9 @@ const TOOL_DATA: Readonly<Record<string, (value: unknown) => boolean>> = {
   get_schedule: isScheduleData,
   get_grades: isGradesData,
   get_plan_progress: isPlanProgressData,
+  get_courses: isCoursesData,
+  get_assignments: isAssignmentsData,
+  get_lms_grades: isLmsGradesData,
 };
 
 function parseToolResult(value: unknown, tool: string): ToolResult | null {

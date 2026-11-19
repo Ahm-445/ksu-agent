@@ -2,9 +2,12 @@ import type { Dictionary, Lang } from "@/lib/i18n";
 import {
   categoryOfTool,
   type AbsencesData,
+  type AssignmentsData,
+  type CoursesData,
   type FinalExamsData,
   type GradesData,
   type GpaData,
+  type LmsGradesData,
   type PlanProgressData,
   type RemainingCourse,
   type ScheduleData,
@@ -126,6 +129,67 @@ const SCHEDULE_TEMPLATES: Record<
     ],
   },
 };
+
+const COURSES_TEMPLATES: Record<
+  Lang,
+  { intro: string; course: string; courseWithSections: string; noCode: string; none: string }
+> = {
+  ar: {
+    intro: "مقرراتك في LMS هذا الفصل:",
+    course: "{name} ({code})",
+    courseWithSections: "{name} ({code}) — شعبة {sections}",
+    noCode: "بدون رمز",
+    none: "لا توجد مقررات لك في LMS هذا الفصل.",
+  },
+  en: {
+    intro: "Your LMS courses this term:",
+    course: "{name} ({code})",
+    courseWithSections: "{name} ({code}) — section {sections}",
+    noCode: "no code",
+    none: "No LMS courses are listed for this term.",
+  },
+};
+
+const ASSIGNMENTS_TEMPLATES: Record<
+  Lang,
+  { intro: string; item: string; none: string }
+> = {
+  ar: {
+    intro: "واجباتك القادمة حسب LMS:",
+    item: "{title} — {course}، التسليم {due}",
+    none: "لا توجد واجبات قادمة في LMS.",
+  },
+  en: {
+    intro: "Your upcoming LMS assignments:",
+    item: "{title} — {course}, due {due}",
+    none: "No upcoming LMS assignments.",
+  },
+};
+
+const LMS_GRADES_TEMPLATES: Record<
+  Lang,
+  { intro: string; course: string; none: string; notRecorded: string }
+> = {
+  ar: {
+    intro: "درجاتك في LMS:",
+    course: "{name}: {grade}",
+    none: "لا توجد مقررات لك في LMS هذا الفصل.",
+    notRecorded: "لم تُرصد بعد",
+  },
+  en: {
+    intro: "Your LMS grades:",
+    course: "{name}: {grade}",
+    none: "No LMS courses are listed for this term.",
+    notRecorded: "not recorded yet",
+  },
+};
+
+/** A due date as `2026-11-21 23:59`, from the contract's `2026-11-21T23:59:00+03:00`. */
+function dueDate(dueAt: string): string {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(dueAt);
+
+  return match ? `${match[1]} ${match[2]}` : dueAt;
+}
 
 function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (placeholder, key: string) =>
@@ -286,6 +350,73 @@ export function scheduleAnswer(data: ScheduleData, lang: Lang): string {
   );
 }
 
+/** The LMS course list, one line per course, or the empty case. */
+export function coursesAnswer(data: CoursesData, lang: Lang): string {
+  const templates = COURSES_TEMPLATES[lang];
+
+  if (data.courses.length === 0) {
+    return templates.none;
+  }
+
+  return sentence(
+    templates.intro,
+    data.courses.map((course) =>
+      course.sections.length === 0
+        ? fill(templates.course, {
+            name: course.name,
+            code: course.code ?? templates.noCode,
+          })
+        : fill(templates.courseWithSections, {
+            name: course.name,
+            code: course.code ?? templates.noCode,
+            sections: course.sections.join(lang === "ar" ? "، " : ", "),
+          }),
+    ),
+    lang,
+  );
+}
+
+/** The upcoming assignments, soonest first, or the empty case. */
+export function assignmentsAnswer(data: AssignmentsData, lang: Lang): string {
+  const templates = ASSIGNMENTS_TEMPLATES[lang];
+
+  if (data.items.length === 0) {
+    return templates.none;
+  }
+
+  return sentence(
+    templates.intro,
+    data.items.map((item) =>
+      fill(templates.item, {
+        title: item.title,
+        course: item.course,
+        due: dueDate(item.due_at),
+      }),
+    ),
+    lang,
+  );
+}
+
+/** The LMS grades, one line per course, with the not-recorded-yet case spelled out. */
+export function lmsGradesAnswer(data: LmsGradesData, lang: Lang): string {
+  const templates = LMS_GRADES_TEMPLATES[lang];
+
+  if (data.courses.length === 0) {
+    return templates.none;
+  }
+
+  return sentence(
+    templates.intro,
+    data.courses.map((course) =>
+      fill(templates.course, {
+        name: course.name,
+        grade: course.grade ?? templates.notRecorded,
+      }),
+    ),
+    lang,
+  );
+}
+
 /**
  * The answer for one tool result, in the student's language. Null when the tool has no
  * template here, so the caller can report an unreadable page instead.
@@ -308,6 +439,12 @@ export function personalAnswer(
       return gradesAnswer(data as GradesData, lang);
     case "get_plan_progress":
       return planProgressAnswer(data as PlanProgressData, lang);
+    case "get_courses":
+      return coursesAnswer(data as CoursesData, lang);
+    case "get_assignments":
+      return assignmentsAnswer(data as AssignmentsData, lang);
+    case "get_lms_grades":
+      return lmsGradesAnswer(data as LmsGradesData, lang);
     default:
       return null;
   }
