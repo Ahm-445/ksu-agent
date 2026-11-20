@@ -291,3 +291,22 @@ def test_a_warning_question_and_a_target_question_are_different_kinds():
     """Both read the GPA, but only one asks what average a target needs."""
     assert detect_reasoning_kind("هل أنا تحت الإنذار؟") == "academic_warning"
     assert detect_reasoning_kind("كم أحتاج أجيب عشان يصير معدلي 4.5؟") == "gpa_target"
+
+
+def test_a_requirement_question_is_not_a_graduation_question():
+    """«كم المعدل المطلوب عشان أتخرج؟» asks for the requirement, not this student's plan.
+
+    The purpose clause «عشان أتخرج» alone names the student, but a requirement word before it
+    («المطلوب», «شروط») makes the question one about the rule.
+    """
+    assert detect_personal_request("كم المعدل المطلوب عشان أتخرج؟") is None
+    assert detect_reasoning_kind("كم المعدل المطلوب عشان أتخرج؟") is None
+
+
+def test_a_question_about_what_is_left_for_the_student_is_a_graduation_question():
+    """The same purpose clause without a requirement word asks about the student's own plan."""
+    request = detect_personal_request("كم باقي لي عشان أتخرج؟")
+
+    assert request is not None
+    assert request.reasoning is True
+    assert request.tools == ("get_plan_progress", "get_gpa")
