@@ -139,11 +139,17 @@ class CitationModel(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """An answer from the regulation, in the contract's field order."""
+    """An answer, in the contract's field order.
+
+    `basis` says what the answer rests on: "regulation" when the regulation answers the question,
+    "student_data" when the student's own numbers are all there is, so the website can say so
+    before the student reads a number that no article supports.
+    """
 
     type: Literal["answer"] = "answer"
     answer: str
     citations: list[CitationModel]
+    basis: Literal["regulation", "student_data"] = "regulation"
 
 
 class ToolResponse(BaseModel):
@@ -179,6 +185,12 @@ def get_config() -> answer.ChatConfig:
 def get_retriever() -> answer.Retriever:
     """The retriever for the configured source; the index loads on first use."""
     return answer.make_searcher(get_config().source_id)
+
+
+@lru_cache
+def get_source() -> answer.SourceRef | None:
+    """The regulation's title and URL from sources.toml, for citing an article retrieval missed."""
+    return answer.load_source(get_config().source_id)
 
 
 @lru_cache
@@ -228,6 +240,7 @@ def chat(request: ChatRequest) -> ChatResponse | ToolResponse | ReasonResponse:
             retriever=retriever,
             client=client,
             config=get_config(),
+            source=get_source(),
         )
     except answer.ModelUnavailable as exc:
         LOGGER.error("chat failed: %s", exc)
@@ -251,10 +264,13 @@ def chat(request: ChatRequest) -> ChatResponse | ToolResponse | ReasonResponse:
     return _answer_response(result)
 
 
-def _answer_response(result: answer.Answer) -> ChatResponse:
+def _answer_response(
+    result: answer.Answer, basis: Literal["regulation", "student_data"] = "regulation"
+) -> ChatResponse:
     """The contract's answer body, in its field order."""
     return ChatResponse(
         answer=result.answer,
+        basis=basis,
         citations=[
             CitationModel(
                 title=citation.title,
@@ -277,6 +293,9 @@ def chat_with_data(request: WithDataRequest) -> ChatResponse:
     The body carries the values the website read in the browser, once, after the student
     approved this one question (ADR 0001, rule 5). Only tool names, the size of the data and
     the latency are logged: never the question, never a value, and never the text of an error.
+
+    A verdict kind (absences, academic warning, graduation, GPA target, exam clash) is answered
+    from the computed numbers and the template, with no model call at all.
     """
     started = time.monotonic()
 
@@ -296,21 +315,37 @@ def chat_with_data(request: WithDataRequest) -> ChatResponse:
         kind, data, reasoning.thresholds, request.message
     )
     extra_queries = reasoning.retrieval.get(kind, ()) if kind else ()
+    needs_regulation = facts.needs_regulation(kind)
 
+    # A verdict kind is answered from the template and the computed numbers alone: there is nothing
+    # for the model to phrase and nothing it could get wrong, so it is never called and the client
+    # is not even built. Retrieval still runs, for the citations.
     # Built inside the try: a missing index, a missing key and anything unexpected all answer
     # the same 503. Only the exception's type is logged: an unexpected error's message can
     # carry a value from the prompt, and uvicorn would log a chained traceback with it.
     try:
-        result = answer.answer_question(
-            request.message,
-            retriever=get_retriever(),
-            client=get_client(),
-            config=get_config(),
-            student_data=data,
-            facts=computed,
-            extra_queries=extra_queries,
-            needs_regulation=facts.needs_regulation(kind),
-        )
+        if answer.is_verdict_kind(kind):
+            result = answer.answer_from_facts(
+                kind,
+                request.message,
+                retriever=get_retriever(),
+                facts=computed,
+                needs_regulation=needs_regulation,
+                extra_queries=extra_queries,
+                source=get_source(),
+            )
+        else:
+            result = answer.answer_question(
+                request.message,
+                retriever=get_retriever(),
+                client=get_client(),
+                config=get_config(),
+                student_data=data,
+                facts=computed,
+                extra_queries=extra_queries,
+                needs_regulation=needs_regulation,
+                source=get_source(),
+            )
     except Exception as exc:
         LOGGER.error("with-data failed: %s", type(exc).__name__)
         raise HTTPException(
@@ -325,4 +360,6 @@ def chat_with_data(request: WithDataRequest) -> ChatResponse:
         data_size(data),
         round((time.monotonic() - started) * 1000),
     )
-    return _answer_response(result)
+    return _answer_response(
+        result, "regulation" if needs_regulation else "student_data"
+    )

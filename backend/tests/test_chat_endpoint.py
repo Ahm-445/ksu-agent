@@ -72,10 +72,11 @@ def test_answerable_question_returns_an_answer_with_citations(api):
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"type", "answer", "citations"}
+    assert set(body) == {"type", "answer", "citations", "basis"}
     assert body["type"] == "answer"
     assert "2,75" in body["answer"]
     assert body["citations"] == [{"title": TITLE, "article": 62, "url": URL}]
+    assert body["basis"] == "regulation"
 
 
 def test_a_question_about_the_students_own_gpa_returns_the_tool(api):
@@ -230,7 +231,7 @@ def test_the_response_carries_the_contract_fields_in_order(api):
 
     body = client.post("/chat", json={"message": QUESTION}).json()
 
-    assert list(body) == ["type", "answer", "citations"]
+    assert list(body) == ["type", "answer", "citations", "basis"]
     assert list(body["citations"][0]) == ["title", "article", "url"]
 
 
