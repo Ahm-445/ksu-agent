@@ -23,9 +23,10 @@ reported, because the read happens in the browser and sends nothing, and it fail
 does not accept that tool. The targets are 95% on each set, no regulation question on a reasoning
 route, and no tool read an item does not accept; the exit status is 1 when a target is missed.
 
-`--repeat N` routes every question N times, because the classifier is not fully deterministic: an
-item counts as correct only when all N runs agree on an accepted route, and a question whose route
-changed is printed as UNSTABLE rather than silently scored on its first run.
+`--repeat N` routes every question N times, because the classifier is not fully deterministic. An
+item is correct when every run's route is one the set accepts: a question that moved between two
+accepted routes is printed as VARIES (accepted) and does not fail, while a move that reaches a route
+the set does not accept is UNSTABLE and fails the run.
 
 This calls the real chat model, so it needs OPENAI_API_KEY and it is not part of pytest.
 
@@ -86,19 +87,37 @@ class Row:
         return self.sources[0] if len(set(self.sources)) == 1 else "mixed"
 
     @property
-    def unstable(self) -> bool:
-        """The same question took two routes: the classifier cannot be relied on here."""
+    def varies(self) -> bool:
+        """The same question took more than one route between the runs."""
         return len(set(self.runs)) > 1
+
+    @property
+    def unstable(self) -> bool:
+        """The variation left the accepted set: the classifier cannot be relied on here.
+
+        A question that moved between two routes the set accepts is `varies`, not `unstable`: the
+        set says both answers are right, so which one a run picks is not a defect.
+        """
+        return self.varies and not self.ok
+
+    @property
+    def status(self) -> str:
+        """The word printed for this item."""
+        if self.unstable:
+            return "UNSTABLE"
+        if self.varies:
+            return "VARIES (accepted)"
+        return "ok" if self.ok else "MISS"
 
     @property
     def seen(self) -> str:
         """Every route taken when they differ, the one route otherwise."""
-        return " / ".join(self.runs) if self.unstable else self.route
+        return " / ".join(self.runs) if self.varies else self.route
 
     @property
     def ok(self) -> bool:
-        """Correct only when every run agrees and the route it agreed on is accepted."""
-        return not self.unstable and all(route in self.accepted for route in self.runs)
+        """Correct when every run's route is one the set accepts, however many routes it takes."""
+        return all(route in self.accepted for route in self.runs)
 
     @property
     def is_regulation_question(self) -> bool:
@@ -162,6 +181,10 @@ class SetResult:
         for row in self.rows:
             counts[row.source] = counts.get(row.source, 0) + 1
         return counts
+
+    @property
+    def varies(self) -> int:
+        return sum(row.varies for row in self.rows)
 
     @property
     def unstable(self) -> int:
@@ -266,8 +289,7 @@ def run_set(path: Path, *, client, config, repeat: int = 1) -> SetResult:
     for item in load_set(path):
         row = route(item, client=client, config=config, repeat=repeat)
         rows.append(row)
-        status = "UNSTABLE" if row.unstable else ("ok  " if row.ok else "MISS")
-        print(f"  {status} {row.id}  -> {row.seen} ({row.source})")
+        print(f"  {row.status:<17} {row.id}  -> {row.seen} ({row.source})")
     return SetResult(path=path, rows=tuple(rows))
 
 
@@ -297,11 +319,11 @@ def report(result: SetResult) -> str:
         for route, (correct, total) in per_route(result.rows).items()
     ]
 
-    unstable = [row for row in result.rows if row.unstable]
-    lines.append(f"  unstable: {len(unstable)}")
+    varying = [row for row in result.rows if row.varies]
+    lines.append(f"  varies: {len(varying)}  (unstable: {result.unstable})")
     lines += [
-        f"    {row.id}  ({row.question})  saw {row.seen} ({row.source})"
-        for row in unstable
+        f"    {row.id}  ({row.question})  saw {row.seen} ({row.source})  {row.status}"
+        for row in varying
     ]
 
     misses = [row for row in result.rows if not row.ok]
@@ -349,8 +371,9 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=1,
         metavar="N",
-        help="route every question N times; an item is correct only when all N runs agree "
-        "on an accepted route, and a question that changed is printed as UNSTABLE",
+        help="route every question N times; an item is correct when every run's route is "
+        "accepted, a question that moved inside its accepted routes is printed as "
+        "VARIES (accepted), and one that moved outside them as UNSTABLE",
     )
     args = parser.parse_args(argv)
 
@@ -376,10 +399,11 @@ def main(argv: list[str] | None = None) -> int:
     for result in results:
         print(
             f"  {result.path.name:<32} {result.correct:>3}/{len(result.rows):<3} "
-            f"{result.accuracy:>6.1%}   unstable {result.unstable}   regulation->reason "
-            f"{result.regulation_sent_to_a_reasoning_route}   regulation->tool "
-            f"{result.regulation_sent_to_a_tool_route} "
+            f"{result.accuracy:>6.1%}   varies {result.varies}   unstable {result.unstable}   "
+            f"regulation->reason {result.regulation_sent_to_a_reasoning_route}   "
+            f"regulation->tool {result.regulation_sent_to_a_tool_route} "
             f"(unaccepted {result.regulation_sent_to_an_unaccepted_tool_route})   "
+            f"{'PASS' if result.meets_targets else 'FAIL'}"
         )
 
     return 0 if all(result.meets_targets for result in results) else 1

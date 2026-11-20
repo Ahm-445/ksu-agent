@@ -67,7 +67,7 @@ def test_the_report_prints_the_table_it_computed():
 
     assert f"{'regulation':<22} 1/1" in report
     assert f"{'get_gpa':<22} 0/1" in report
-    assert f"{'get_gpa':<22} 0/1" in report
+
 
 # --- repeat ----------------------------------------------------------------
 
@@ -76,17 +76,10 @@ def test_one_run_is_the_default_and_an_item_is_its_own_route():
     item = row("regulation")
 
     assert item.ok
+    assert not item.varies
     assert not item.unstable
+    assert item.status == "ok"
     assert item.seen == "regulation"
-
-
-def test_two_runs_that_disagree_are_unstable_and_not_correct():
-    """The classifier moved between runs: the item cannot be scored on its first run alone."""
-    item = row("regulation", runs=("regulation", "get_final_exams"))
-
-    assert item.unstable
-    assert not item.ok
-    assert item.seen == "regulation / get_final_exams"
 
 
 def test_two_runs_that_agree_on_an_accepted_route_are_correct():
@@ -96,7 +89,82 @@ def test_two_runs_that_agree_on_an_accepted_route_are_correct():
         runs=("get_final_exams", "get_final_exams"),
     )
 
+    assert not item.varies
+    assert item.ok
+    assert item.status == "ok"
+
+
+def test_a_route_that_varies_inside_the_accepted_set_is_correct():
+    """reg-04: the set says both answers are right, so which one a run picks is not a defect."""
+    item = row(
+        "regulation",
+        accepted=("regulation", "get_final_exams"),
+        runs=("regulation", "regulation", "get_final_exams"),
+    )
+
+    assert item.varies
     assert not item.unstable
+    assert item.ok
+    assert item.status == "VARIES (accepted)"
+    assert item.seen == "regulation / regulation / get_final_exams"
+
+
+def test_a_route_that_varies_outside_the_accepted_set_is_unstable_and_not_correct():
+    item = row("regulation", runs=("regulation", "regulation", "get_final_exams"))
+
+    assert item.varies
+    assert item.unstable
+    assert not item.ok
+    assert item.status == "UNSTABLE"
+
+
+def test_a_run_that_varies_inside_its_accepted_routes_meets_the_targets():
+    rows = tuple(row("regulation") for _ in range(19)) + (
+        row(
+            "regulation",
+            accepted=("regulation", "get_final_exams"),
+            runs=("regulation", "regulation", "get_final_exams"),
+        ),
+    )
+    result = runner.SetResult(path=Path("phase2_router.json"), rows=rows)
+
+    assert result.correct == 20
+    assert result.varies == 1
+    assert result.unstable == 0
+    assert result.meets_targets
+
+
+def test_the_run_fails_on_one_unstable_item_even_at_full_accuracy():
+    rows = tuple(row("regulation") for _ in range(19)) + (
+        row("regulation", runs=("regulation", "get_gpa")),
+    )
+    result = runner.SetResult(path=Path("phase2_router.json"), rows=rows)
+
+    assert result.accuracy == 0.95
+    assert result.varies == 1
+    assert result.unstable == 1
+    assert not result.meets_targets
+
+
+def test_the_report_names_a_varying_item_as_accepted_and_keeps_it_out_of_the_misses():
+    rows = (
+        row("regulation"),
+        row(
+            "regulation",
+            accepted=("regulation", "get_final_exams"),
+            runs=("regulation", "regulation", "get_final_exams"),
+        ),
+    )
+    result = runner.SetResult(path=Path("phase2_router.json"), rows=rows)
+    report = runner.report(result)
+
+    assert "  varies: 1  (unstable: 0)" in report
+    assert "VARIES (accepted)" in report
+    assert "  misses: 0" in report
+    assert "PASS" in report
+
+
+def test_a_tool_route_the_item_refuses_is_an_unaccepted_tool_route():
     item = row("regulation", runs=("get_final_exams", "get_final_exams"))
 
     assert set(item.unaccepted_tool_routes) == {"get_final_exams"}
@@ -121,14 +189,3 @@ def test_a_reasoning_route_for_a_rule_question_is_the_hard_failure():
 
     assert item.sent_to_a_reasoning_route
     assert not item.sent_to_a_tool_route
-
-
-def test_the_run_fails_on_one_unstable_item_even_at_full_accuracy():
-    rows = tuple(row("regulation") for _ in range(19)) + (
-        row("regulation", runs=("regulation", "get_gpa")),
-    )
-    result = runner.SetResult(path=Path("phase2_router.json"), rows=rows)
-
-    assert result.accuracy == 0.95
-    assert result.unstable == 1
-    assert not result.meets_targets
