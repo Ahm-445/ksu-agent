@@ -1,15 +1,17 @@
 """HTTP API for KSU Agent.
 
-One endpoint, POST /chat, exactly as written in docs/api-contract.md: a question in,
-an Arabic answer plus the regulation articles it cites out. Retrieval and generation
-live in backend/scripts (retrieve.py, answer.py); this module validates the request
-and maps failures to status codes. The API key is read from .env by answer.make_client
-and never appears in a response or a log line.
+Two endpoints, exactly as written in docs/api-contract.md: POST /chat answers a question
+with an Arabic answer plus the regulation articles it cites, or names the tools the
+website runs; POST /chat/with-data answers a reasoning question from the values the
+student approved sending. Retrieval and generation live in backend/scripts (retrieve.py,
+answer.py); this module validates the request and maps failures to status codes. The API
+key is read from .env by answer.make_client and never appears in a response or a log line.
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -22,7 +24,8 @@ from pydantic import BaseModel, Field, field_validator
 
 import answer
 from app.auth.routes import require_user, router as auth_router
-from app.tools import detect_personal_request
+from app.tools import detect_personal_request, detect_reasoning_tools
+from app.with_data import DataError, data_size, validate_data
 
 LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +49,26 @@ app.add_middleware(
 
 app.include_router(auth_router)
 
+# The whole body of a reasoning answer is small: one entry per tool the reply named,
+# with the fields the contract lists. A body over this is refused before it is parsed.
+MAX_WITH_DATA_BYTES = 20 * 1024
+
+# The two endpoints whose validation failures answer with a short code.
+ANSWER_PATHS = ("/chat", "/chat/with-data")
+
+
+@app.middleware("http")
+async def _refuse_oversized_with_data(request, call_next):
+    """A body over the contract's limit is a 422 with a code, not a parse attempt."""
+    if request.method == "POST" and request.url.path == "/chat/with-data":
+        body = await request.body()
+        if len(body) > MAX_WITH_DATA_BYTES:
+            LOGGER.info("rejected a with-data request: data_too_large")
+            return JSONResponse(
+                status_code=422, content={"detail": "data_too_large"}
+            )
+    return await call_next(request)
+
 
 def _message_validation_code(exc: RequestValidationError) -> str | None:
     """The short code for a bad `message`, or None for any other failure.
@@ -66,11 +89,11 @@ def _message_validation_code(exc: RequestValidationError) -> str | None:
 
 @app.exception_handler(RequestValidationError)
 async def _chat_validation_error(request, exc: RequestValidationError):
-    """Answer /chat validation failures with a code; leave everything else alone."""
-    if request.url.path == "/chat":
+    """Answer a chat validation failure with a code; leave everything else alone."""
+    if request.url.path in ANSWER_PATHS:
         code = _message_validation_code(exc)
         if code is not None:
-            LOGGER.info("rejected a chat request: %s", code)
+            LOGGER.info("rejected a request to %s: %s", request.url.path, code)
             return JSONResponse(status_code=422, content={"detail": code})
     return await request_validation_exception_handler(request, exc)
 
@@ -92,6 +115,15 @@ class ChatRequest(BaseModel):
             raise ValueError("message_empty")
         return message
 
+
+class WithDataRequest(ChatRequest):
+    """`/chat/with-data`: the question, and the values the website read for it.
+
+    `data` is one entry per tool the `/chat` reply named; `validate_data` checks the keys
+    against that list and each value against the tool's contract fields.
+    """
+
+    data: dict[str, Any] = Field(default_factory=dict)
 
 class CitationModel(BaseModel):
     """One cited article, in the contract's field order."""
@@ -200,12 +232,16 @@ def chat(request: ChatRequest) -> ChatResponse | ToolResponse | ReasonResponse:
             status_code=503,
             detail="the answer service is unavailable; please try again",
         ) from exc
-
     LOGGER.info(
         "answered a %d-character question with %d citation(s)",
         len(request.message),
         len(result.citations),
     )
+    return _answer_response(result)
+
+
+def _answer_response(result: answer.Answer) -> ChatResponse:
+    """The contract's answer body, in its field order."""
     return ChatResponse(
         answer=result.answer,
         citations=[
@@ -217,3 +253,55 @@ def chat(request: ChatRequest) -> ChatResponse | ToolResponse | ReasonResponse:
             for citation in result.citations
         ],
     )
+
+
+@app.post(
+    "/chat/with-data",
+    response_model=ChatResponse,
+    dependencies=[Depends(require_user)],
+)
+def chat_with_data(request: WithDataRequest) -> ChatResponse:
+    """Answer one reasoning question from the student's own values.
+
+    The body carries the values the website read in the browser, once, after the student
+    approved this one question (ADR 0001, rule 5). Only tool names, the size of the data and
+    the latency are logged: never the question, never a value, and never the text of an error.
+    """
+    started = time.monotonic()
+
+    try:
+        data = validate_data(request.data, detect_reasoning_tools(request.message))
+    except DataError as exc:
+        LOGGER.info("rejected a with-data request: %s", exc.code)
+        raise HTTPException(status_code=422, detail=exc.code) from exc
+
+    # Built inside the try: a missing index or a missing key is a 503 for this endpoint, the
+    # same answer as a model that cannot be called.
+    try:
+        result = answer.answer_question(
+            request.message,
+            retriever=get_retriever(),
+            client=get_client(),
+            config=get_config(),
+            student_data=data,
+        )
+    except answer.ModelUnavailable as exc:
+        LOGGER.error("with-data failed: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=503,
+            detail="the answer service is unavailable; please try again",
+        ) from exc
+    except (OSError, ValueError, RuntimeError) as exc:
+        LOGGER.error("with-data failed: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=503,
+            detail="the answer service is unavailable; please try again",
+        ) from exc
+
+    LOGGER.info(
+        "answered a reasoning question with %s (%d bytes of data) in %d ms",
+        ", ".join(data),
+        data_size(data),
+        round((time.monotonic() - started) * 1000),
+    )
+    return _answer_response(result)
