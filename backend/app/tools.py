@@ -66,12 +66,17 @@ _ENGLISH_NEAR_DEPRIVATION = re.compile(
     r"|\bhow\s+many\s+absences?\b[^.?!]{0,40}\b(?:left|before)\b"
 )
 
-# "كم أحتاج أجيب عشان يصير معدلي 4.5؟" asks for a target, and "هل أنا تحت
-# الإنذار؟" asks about the student's standing. The regulation questions "كيف يُحسب
-# المعدل التراكمي؟" and "ما هو الإنذار الأكاديمي؟" carry neither wording.
+# "كم أحتاج أجيب عشان يصير معدلي 4.5؟" asks what average a target needs. It is a kind
+# of its own: the fact it needs is the required average, not a verdict on a threshold.
 _ARABIC_GPA_TARGET = re.compile(
     r"(?:عشان|علشان|حتي)[^.?!]{0,10}(?:يصير|يكون|اوصل|ارفع)[^.?!]{0,25}معدل"
-    r"|انا[^.?!]{0,25}(?:ال)?انذار"
+)
+
+# "هل أنا تحت الإنذار؟" asks about the student's standing against the warning threshold.
+# The regulation question "ما هو الإنذار الأكاديمي؟" carries no "أنا", so it stays an
+# ordinary answer.
+_ARABIC_ACADEMIC_WARNING = re.compile(
+    r"انا[^.?!]{0,25}(?:ال)?انذار"
     r"|(?:ال)?انذار[^.?!]{0,25}(?:انا|علي\s+وشك)"
 )
 
@@ -79,8 +84,10 @@ _ARABIC_GPA_TARGET = re.compile(
 _ENGLISH_GPA_TARGET = re.compile(
     r"\bwhat\s+(?:do\s+i|grades?\s+do\s+i)\s+need\b[^.?!]{0,50}\b(?:gpa|average)\b"
     r"|\b(?:raise|improve|bring\s+up)\s+my\s+(?:gpa|average)\b"
-    r"|\bam\s+i\s+(?:on|under)\s+(?:academic\s+)?warning\b"
     r"|\bdo\s+i\s+need\b[^.?!]{0,40}\b(?:to\s+raise|for)\b[^.?!]{0,25}\bgpa\b"
+)
+_ENGLISH_ACADEMIC_WARNING = re.compile(
+    r"\bam\s+i\s+(?:on|under)\s+(?:academic\s+)?warning\b"
 )
 
 # "هل عندي تعارض في الاختبارات النهائية؟": two exams at the same time is a
@@ -226,12 +233,47 @@ _ENGLISH_OWN_PLAN = re.compile(
 )
 
 
+REASONING_GRADUATION = "graduation"
 def normalise(message: str) -> str:
     """Lower-case, digit-normalised text with the Arabic marks removed."""
     text = unicodedata.normalize("NFKC", message)
     text = _MARKS.sub("", text)
     text = text.translate(_ALEF_FORMS).translate(_ARABIC_DIGITS)
     return " ".join(text.split()).lower()
+
+
+REASONING_ABSENCES = "absences"
+REASONING_GPA_TARGET = "gpa_target"
+REASONING_ACADEMIC_WARNING = "academic_warning"
+REASONING_EXAM_CONFLICTS = "exam_conflicts"
+REASONING_PLAN_WEEK = "plan_week"
+
+# The tools each kind reads, in the order the website runs them. The kind itself is
+# internal: /chat names only these tools.
+REASONING_TOOLS: dict[str, tuple[str, ...]] = {
+    REASONING_GRADUATION: ("get_plan_progress", "get_gpa"),
+    REASONING_ABSENCES: ("get_absences",),
+    REASONING_GPA_TARGET: ("get_gpa",),
+    REASONING_ACADEMIC_WARNING: ("get_gpa",),
+    REASONING_EXAM_CONFLICTS: ("get_final_exams",),
+    REASONING_PLAN_WEEK: ("get_assignments", "get_schedule"),
+}
+
+# Checked in this order. A question that matches two patterns is the first kind: the
+# graduation wording is the most specific, and the GPA target is checked before the
+# warning because "عشان يصير معدلي" asks for a target even when it names the warning.
+_REASONING_PATTERNS: tuple[tuple[str, re.Pattern[str], re.Pattern[str]], ...] = (
+    (REASONING_GRADUATION, _ARABIC_GRADUATION, _ENGLISH_GRADUATION),
+    (REASONING_ABSENCES, _ARABIC_NEAR_DEPRIVATION, _ENGLISH_NEAR_DEPRIVATION),
+    (REASONING_GPA_TARGET, _ARABIC_GPA_TARGET, _ENGLISH_GPA_TARGET),
+    (
+        REASONING_ACADEMIC_WARNING,
+        _ARABIC_ACADEMIC_WARNING,
+        _ENGLISH_ACADEMIC_WARNING,
+    ),
+    (REASONING_EXAM_CONFLICTS, _ARABIC_EXAM_CONFLICT, _ENGLISH_EXAM_CONFLICT),
+    (REASONING_PLAN_WEEK, _ARABIC_PLAN_WEEK, _ENGLISH_PLAN_WEEK),
+)
 
 
 @dataclass(frozen=True)
@@ -247,32 +289,30 @@ class ToolRequest:
     reasoning: bool = False
 
 
+def detect_reasoning_kind(message: str) -> str | None:
+    """Which reasoning kind a question is, or None when it is not a reasoning one.
+
+    The kind decides the facts the backend computes for the answer. It is derived from
+    the message alone and never sent to the website.
+    """
+    text = normalise(message)
+
+    for kind, arabic, english in _REASONING_PATTERNS:
+        if arabic.search(text) or english.search(text):
+            return kind
+
+    return None
+
+
 def detect_reasoning_tools(message: str) -> tuple[str, ...] | None:
     """The tools a reasoning question needs, in the order the website runs them, or None.
 
     None means the question is not a reasoning one: the caller then checks the factual
     patterns, or answers from the regulation.
     """
-    text = normalise(message)
+    kind = detect_reasoning_kind(message)
 
-    if _ARABIC_GRADUATION.search(text) or _ENGLISH_GRADUATION.search(text):
-        return ("get_plan_progress", "get_gpa")
-
-    if _ARABIC_NEAR_DEPRIVATION.search(text) or _ENGLISH_NEAR_DEPRIVATION.search(
-        text
-    ):
-        return ("get_absences",)
-
-    if _ARABIC_GPA_TARGET.search(text) or _ENGLISH_GPA_TARGET.search(text):
-        return ("get_gpa",)
-
-    if _ARABIC_EXAM_CONFLICT.search(text) or _ENGLISH_EXAM_CONFLICT.search(text):
-        return ("get_final_exams",)
-
-    if _ARABIC_PLAN_WEEK.search(text) or _ENGLISH_PLAN_WEEK.search(text):
-        return ("get_assignments", "get_schedule")
-
-    return None
+    return None if kind is None else REASONING_TOOLS[kind]
 
 
 def detect_personal_tool(message: str) -> str | None:

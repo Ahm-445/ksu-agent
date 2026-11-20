@@ -7,7 +7,11 @@ about "المعدل التراكمي" or "شروط الحرمان" in general mu
 
 import pytest
 
-from app.tools import detect_personal_request, detect_personal_tool
+from app.tools import (
+    detect_personal_request,
+    detect_personal_tool,
+    detect_reasoning_kind,
+)
 
 PERSONAL = {
     "get_gpa": [
@@ -243,3 +247,47 @@ def test_a_question_about_what_is_due_is_a_single_assignments_tool(message):
     assert request is not None
     assert request.reasoning is False
     assert request.tools == ("get_assignments",)
+
+
+# The kind is what the backend computes facts for, so /chat/with-data re-derives it from
+# the same message. It is never sent to the website: /chat still names only the tools.
+REASONING_KINDS = [
+    ("هل أقدر أتخرج الفصل القادم؟", "graduation"),
+    ("متى أتخرج؟", "graduation"),
+    ("Can I graduate next term?", "graduation"),
+    ("هل أنا قريب من الحرمان؟", "absences"),
+    ("كم غياب باقي لي قبل الحرمان في 434", "absences"),
+    ("Am I close to being barred?", "absences"),
+    ("كم أحتاج أجيب عشان يصير معدلي 4.5؟", "gpa_target"),
+    ("What do I need to raise my GPA to 4.5?", "gpa_target"),
+    ("هل أنا تحت الإنذار؟", "academic_warning"),
+    ("Am I on academic warning?", "academic_warning"),
+    ("هل عندي تعارض في الاختبارات النهائية؟", "exam_conflicts"),
+    ("كيف أوزع وقتي هالأسبوع؟", "plan_week"),
+    ("plan my week", "plan_week"),
+]
+
+
+@pytest.mark.parametrize(("message", "kind"), REASONING_KINDS)
+def test_a_reasoning_question_has_its_kind(message, kind):
+    assert detect_reasoning_kind(message) == kind
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "ما شروط الحرمان؟",
+        "كم المعدل المطلوب للتخرج؟",
+        "ما هو الإنذار الأكاديمي؟",
+        "كيف يُحسب المعدل التراكمي؟",
+        "ما معدلي",
+    ],
+)
+def test_a_regulation_or_factual_question_has_no_kind(message):
+    assert detect_reasoning_kind(message) is None
+
+
+def test_a_warning_question_and_a_target_question_are_different_kinds():
+    """Both read the GPA, but only one asks what average a target needs."""
+    assert detect_reasoning_kind("هل أنا تحت الإنذار؟") == "academic_warning"
+    assert detect_reasoning_kind("كم أحتاج أجيب عشان يصير معدلي 4.5؟") == "gpa_target"
