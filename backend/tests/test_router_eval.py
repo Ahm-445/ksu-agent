@@ -184,3 +184,77 @@ def test_the_set_reaches_every_reasoning_kind():
     }
 
     assert covered == set(REASONING_KINDS)
+
+
+# --- the held-out set -----------------------------------------------------
+#
+# eval/phase2_router_heldout.json is the check on the fallback classifier: questions
+# written apart from the patterns. It is only a check while the regex still misses some of
+# them, so widening a pattern until this set passes would retire the measurement.
+
+HELDOUT_PATH = EVAL_PATH.with_name("phase2_router_heldout.json")
+
+
+def load_heldout() -> list[dict]:
+    return json.loads(HELDOUT_PATH.read_text(encoding="utf-8"))
+
+
+HELDOUT = load_heldout()
+
+
+def heldout_route(item: dict) -> str:
+    """The route the regex alone takes for one held-out question."""
+    request = detect_personal_request(item["question"])
+
+    if request is None:
+        return "regulation"
+
+    kind = detect_reasoning_kind(item["question"])
+
+    return f"reason:{kind}" if request.reasoning else request.tools[0]
+
+
+def heldout_expected(item: dict) -> str:
+    expected = item["expected"]
+
+    if expected["kind"] == "regulation":
+        return "regulation"
+    if expected["kind"] == "reason":
+        return f"reason:{expected['reasoning']}"
+
+    return expected["tools"][0]
+
+
+def test_the_held_out_set_is_never_added_to_the_patterns():
+    """A regex that passed this set would no longer measure generalisation."""
+    correct = sum(heldout_route(item) == heldout_expected(item) for item in HELDOUT)
+    accuracy = correct / len(HELDOUT)
+
+    assert accuracy < 0.95, (
+        f"the regex now routes {accuracy:.0%} of the held-out set: either a pattern was "
+        "widened to fit it, or the set has served its purpose and needs fresh questions"
+    )
+
+
+def test_the_held_out_set_is_the_size_the_classifier_was_specified_against():
+    assert len(HELDOUT) == 33
+    assert len({item["id"] for item in HELDOUT}) == 33
+
+
+def test_the_held_out_set_reaches_every_tool_and_every_reasoning_kind():
+    covered = {tool for item in HELDOUT for tool in item["expected"]["tools"]}
+    kinds = {
+        item["expected"]["reasoning"]
+        for item in HELDOUT
+        if item["expected"]["kind"] == "reason"
+    }
+
+    assert covered == set(TOOLS)
+    assert kinds == set(REASONING_KINDS)
+
+
+def test_the_held_out_set_keeps_the_regulation_questions_it_needs():
+    """The trap this set guards: a rule question must never read the student's pages."""
+    regulation = [item for item in HELDOUT if item["expected"]["kind"] == "regulation"]
+
+    assert len(regulation) >= 8
