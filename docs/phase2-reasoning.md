@@ -34,7 +34,14 @@ card's wording. The API shapes are in [the contract](api-contract.md#post-chatwi
    card.
 
 What the backend may write down for a reasoning answer: the tool names, the byte size of
-the data and the latency. Never the question, never a value, never the text of an error.
+the data and the latency. Never the question, never a value, never the text of an error: an
+unexpected failure is logged by its type name alone and answered with a 503, with no chained
+traceback that would carry the message.
+
+A value is never trusted to stay inside the block: `<`, `>` and `&` in the JSON are escaped
+(`\u003c`, `\u003e`, `\u0026`) before it goes into the prompt, so a course name or an LMS
+title written by an instructor cannot close `</student_data>` and have its text read as an
+instruction. The JSON stays valid and means the same.
 
 ## Questions the router recognises
 

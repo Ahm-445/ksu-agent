@@ -85,6 +85,11 @@ STUDENT_DATA_RULES = (
 STUDENT_DATA_TEMPLATE = """<student_data>
 {data}
 </student_data>"""
+
+# A course name or an LMS title is written by an instructor, so it is hostile input: one
+# containing "</student_data>" would close the block early and its text would read as
+# instructions. Escaping <, > and & keeps the JSON valid and means the same to the model.
+_DATA_BLOCK_ESCAPES = str.maketrans({"<": "\\u003c", ">": "\\u003e", "&": "\\u0026"})
 ARTICLE_TEMPLATE = """المادة {number}
 العنوان: {heading}
 الرابط: {url}
@@ -259,7 +264,8 @@ def build_messages(
     """System and user messages, or None when no retrieved article can be cited.
 
     With `student_data`, the records go in a user message of their own, between the tags,
-    as JSON, and the system prompt says the block is data and never instructions.
+    as JSON, and the system prompt says the block is data and never instructions. Every <, >
+    and & in the JSON is escaped, so no value can close the block or open a tag.
     """
     articles = format_articles(results)
     if not articles:
@@ -282,7 +288,9 @@ def build_messages(
             {
                 "role": "user",
                 "content": STUDENT_DATA_TEMPLATE.format(
-                    data=json.dumps(student_data, ensure_ascii=False, sort_keys=True)
+                    data=json.dumps(
+                        student_data, ensure_ascii=False, sort_keys=True
+                    ).translate(_DATA_BLOCK_ESCAPES)
                 ),
             }
         )

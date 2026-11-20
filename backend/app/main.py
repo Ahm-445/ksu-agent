@@ -275,8 +275,9 @@ def chat_with_data(request: WithDataRequest) -> ChatResponse:
         LOGGER.info("rejected a with-data request: %s", exc.code)
         raise HTTPException(status_code=422, detail=exc.code) from exc
 
-    # Built inside the try: a missing index or a missing key is a 503 for this endpoint, the
-    # same answer as a model that cannot be called.
+    # Built inside the try: a missing index, a missing key and anything unexpected all answer
+    # the same 503. Only the exception's type is logged: an unexpected error's message can
+    # carry a value from the prompt, and uvicorn would log a chained traceback with it.
     try:
         result = answer.answer_question(
             request.message,
@@ -285,18 +286,12 @@ def chat_with_data(request: WithDataRequest) -> ChatResponse:
             config=get_config(),
             student_data=data,
         )
-    except answer.ModelUnavailable as exc:
+    except Exception as exc:
         LOGGER.error("with-data failed: %s", type(exc).__name__)
         raise HTTPException(
             status_code=503,
             detail="the answer service is unavailable; please try again",
-        ) from exc
-    except (OSError, ValueError, RuntimeError) as exc:
-        LOGGER.error("with-data failed: %s", type(exc).__name__)
-        raise HTTPException(
-            status_code=503,
-            detail="the answer service is unavailable; please try again",
-        ) from exc
+        ) from None
 
     LOGGER.info(
         "answered a reasoning question with %s (%d bytes of data) in %d ms",
