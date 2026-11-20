@@ -644,7 +644,8 @@
     "lang": "ar",
     "dialect": "msa",
     "question": "متى الاختبار النهائي؟",
-    "expected": { "kind": "regulation", "tools": [] },
+    "accept": ["regulation", "get_final_exams"],
+    "ambiguous_reason": "The regulation holds no exam dates, and a student asking this usually means their own: a tool route reads only in the browser, under a category they already allowed, and sends nothing to the server.",
     "note": "The exam period, not the student's exam schedule."
   },
   {
@@ -804,7 +805,8 @@
     "lang": "ar",
     "dialect": "msa",
     "question": "متى اختبار الفصل النهائي؟",
-    "expected": { "kind": "regulation", "tools": [] },
+    "accept": ["regulation", "get_final_exams"],
+    "ambiguous_reason": "The regulation holds no exam dates, and a student asking about the term's final exam usually means their own: a tool route reads only in the browser, under a category they already allowed, and sends nothing to the server.",
     "note": "TRAP: the term's final exam, not the student's final exam schedule."
   }
 ]

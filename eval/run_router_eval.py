@@ -8,13 +8,20 @@ from the patterns, of which the regex recognises 22. The other 11 reach the fall
 classifier in `backend/app/intent.py`.
 
 For every question this run records the route the endpoint would take — the regex's
-answer, or the classifier's when the regex returns None — next to the route the set
-expects. Both sets are reported on their own, because averaging a set the patterns were
+answer, or the classifier's when the regex returns None — next to the routes the set
+accepts. Both sets are reported on their own, because averaging a set the patterns were
 written against with a set they were not would hide the overfitting.
 
-The run ends with the accuracy per set and per route, every miss, and the count of
-regulation questions that were sent to a tool. The targets are 95% on each set and zero
-regulation questions routed to a tool; the exit status is 1 when a target is missed.
+A question the set treats as genuinely ambiguous carries `accept`, the routes a student could
+reasonably mean, in place of a single `expected` route, and `ambiguous_reason` saying why. It
+is counted as correct when the route it took is one of them.
+
+The run ends with the accuracy per set and per route, every miss, and two safety lines. A
+regulation question sent to a reasoning route is a hard failure: it would send the student's data
+after consent, for a question the regulation answers. A regulation question sent to a tool route is
+reported, because the read happens in the browser and sends nothing, and it fails only when the item
+does not accept that tool. The targets are 95% on each set, no regulation question on a reasoning
+route, and no tool read an item does not accept; the exit status is 1 when a target is missed.
 
 This calls the real chat model, so it needs OPENAI_API_KEY and it is not part of pytest.
 
@@ -55,23 +62,42 @@ TARGET_ACCURACY = 0.95
 
 @dataclass(frozen=True)
 class Row:
-    """One question's expected route, the route it took, and which router chose it."""
+    """One question's accepted routes, the route it took, and which router chose it."""
 
     id: str
     question: str
-    expected: str
+    accepted: tuple[str, ...]
     route: str
     source: str
     latency_ms: float
 
     @property
     def ok(self) -> bool:
-        return self.route == self.expected
+        return self.route in self.accepted
 
     @property
-    def regulation_sent_to_a_tool(self) -> bool:
-        """A rule question read the student's own pages: the failure this set exists for."""
-        return self.expected == REGULATION and self.route != REGULATION
+    def is_regulation_question(self) -> bool:
+        """The set expects a rule answer: retrieval, and none of the student's pages."""
+        return REGULATION in self.accepted
+
+    @property
+    def sent_to_a_reasoning_route(self) -> bool:
+        """A rule question would send the student's data after consent: never acceptable."""
+        return self.is_regulation_question and self.route.startswith(intent.REASON_PREFIX)
+
+    @property
+    def sent_to_a_tool_route(self) -> bool:
+        """A rule question read the student's own pages: in the browser, nothing sent."""
+        return (
+            self.is_regulation_question
+            and self.route != REGULATION
+            and not self.route.startswith(intent.REASON_PREFIX)
+        )
+
+    @property
+    def sent_to_an_unaccepted_tool_route(self) -> bool:
+        """A page the set does not accept for this question: the miss that is a failure."""
+        return self.sent_to_a_tool_route and not self.ok
 
 
 @dataclass(frozen=True)
@@ -97,24 +123,44 @@ class SetResult:
         return counts
 
     @property
-    def regulation_sent_to_a_tool(self) -> int:
-        return sum(row.regulation_sent_to_a_tool for row in self.rows)
+    def regulation_sent_to_a_reasoning_route(self) -> int:
+        return sum(row.sent_to_a_reasoning_route for row in self.rows)
+
+    @property
+    def regulation_sent_to_a_tool_route(self) -> int:
+        return sum(row.sent_to_a_tool_route for row in self.rows)
+
+    @property
+    def regulation_sent_to_an_unaccepted_tool_route(self) -> int:
+        return sum(row.sent_to_an_unaccepted_tool_route for row in self.rows)
 
     @property
     def meets_targets(self) -> bool:
-        return self.accuracy >= TARGET_ACCURACY and self.regulation_sent_to_a_tool == 0
+        """Accuracy, no data sent for a rule question, no tool read the item refuses."""
+        return (
+            self.accuracy >= TARGET_ACCURACY
+            and self.regulation_sent_to_a_reasoning_route == 0
+            and self.regulation_sent_to_an_unaccepted_tool_route == 0
+        )
 
 
-def expected_route(item: dict) -> str:
-    """The route the set expects, in the same vocabulary the classifier answers in."""
+def accepted_routes(item: dict) -> tuple[str, ...]:
+    """Every route the set accepts, in the same vocabulary the classifier answers in.
+
+    A question with one answer carries `expected`; a genuinely ambiguous one carries `accept`,
+    the routes a student could reasonably mean, and `ambiguous_reason` saying why.
+    """
+    if "accept" in item:
+        return tuple(item["accept"])
+
     expected = item["expected"]
 
     if expected["kind"] == "regulation":
-        return REGULATION
+        return (REGULATION,)
     if expected["kind"] == "reason":
-        return f"{intent.REASON_PREFIX}{expected['reasoning']}"
+        return (f"{intent.REASON_PREFIX}{expected['reasoning']}",)
 
-    return expected["tools"][0]
+    return (expected["tools"][0],)
 
 
 def load_set(path: Path) -> list[dict]:
@@ -122,9 +168,21 @@ def load_set(path: Path) -> list[dict]:
     items = json.loads(path.read_text(encoding="utf-8"))
 
     for item in items:
-        missing = {"id", "question", "expected"} - set(item)
+        missing = {"id", "question"} - set(item)
         if missing:
             raise ValueError(f"{path}: {item.get('id', '?')} is missing {sorted(missing)}")
+
+        if "accept" in item:
+            if "expected" in item:
+                raise ValueError(f"{path}: {item['id']} has both expected and accept")
+            if len(item["accept"]) < 2:
+                raise ValueError(f"{path}: {item['id']} accepts one route: use expected")
+            if not str(item.get("ambiguous_reason", "")).strip():
+                raise ValueError(
+                    f"{path}: {item['id']} accepts several routes without a reason"
+                )
+        elif "expected" not in item:
+            raise ValueError(f"{path}: {item['id']} has neither expected nor accept")
 
     return items
 
@@ -144,7 +202,7 @@ def route(item: dict, *, client, config) -> Row:
     return Row(
         id=item["id"],
         question=question,
-        expected=expected_route(item),
+        accepted=accepted_routes(item),
         route=route,
         source=source,
         latency_ms=(time.perf_counter() - started) * 1000,
@@ -165,8 +223,7 @@ def per_route(rows: tuple[Row, ...]) -> dict[str, tuple[int, int]]:
     """Correct and total per expected route, in the order the routes first appear."""
     counts: dict[str, list[int]] = {}
     for row in rows:
-        entry = counts.setdefault(row.expected, [0, 0])
-        entry[0] += row.ok
+        entry = counts.setdefault(row.accepted[0], [0, 0])
         entry[1] += 1
     return {route: (correct, total) for route, (correct, total) in counts.items()}
 
@@ -188,16 +245,23 @@ def report(result: SetResult) -> str:
     misses = [row for row in result.rows if not row.ok]
     lines.append(f"  misses: {len(misses)}")
     lines += [
-        f"    {row.id}  ({row.question})  expected {row.expected}, "
+        f"    {row.id}  ({row.question})  accepts {list(row.accepted)}, "
         f"got {row.route} ({row.source})"
         for row in misses
     ]
 
     lines.append(
-        f"  regulation sent to a tool: {result.regulation_sent_to_a_tool}"
+        "  regulation sent to a reasoning route: "
+        f"{result.regulation_sent_to_a_reasoning_route}  (must be 0)"
     )
-    lines.append(f"  target {TARGET_ACCURACY:.0%} and none: "
-                 f"{'PASS' if result.meets_targets else 'FAIL'}")
+    lines.append(
+        f"  regulation sent to a tool route: {result.regulation_sent_to_a_tool_route} "
+        f"(unaccepted: {result.regulation_sent_to_an_unaccepted_tool_route})"
+    )
+    lines.append(
+        f"  target {TARGET_ACCURACY:.0%}, no reasoning route, no unaccepted tool: "
+        f"{'PASS' if result.meets_targets else 'FAIL'}"
+    )
 
     return "\n".join(lines)
 
@@ -236,8 +300,10 @@ def main(argv: list[str] | None = None) -> int:
     for result in results:
         print(
             f"  {result.path.name:<32} {result.correct:>3}/{len(result.rows):<3} "
-            f"{result.accuracy:>6.1%}   regulation->tool "
-            f"{result.regulation_sent_to_a_tool}   "
+            f"{result.accuracy:>6.1%}   regulation->reason "
+            f"{result.regulation_sent_to_a_reasoning_route}   regulation->tool "
+            f"{result.regulation_sent_to_a_tool_route} "
+            f"(unaccepted {result.regulation_sent_to_an_unaccepted_tool_route})   "
             f"{'PASS' if result.meets_targets else 'FAIL'}"
         )
 

@@ -12,6 +12,11 @@ pages, compared after the student's consent).
 
 No sentence is special-cased in the router to pass this set: a failure is fixed in the
 pattern, never by matching the question's exact text.
+
+A question the set treats as genuinely ambiguous carries `accept`, the routes a student could
+reasonably mean, in place of one `expected` route, and `ambiguous_reason` saying why; it passes
+when the router takes any of them. The share of such items is capped, so the set cannot drift
+into accepting everything.
 """
 
 from __future__ import annotations
@@ -52,6 +57,10 @@ REASONING_KINDS = (
 MIN_ITEMS = 80
 MIN_REGULATION_ITEMS = 24
 
+# At most one item in twenty may accept several routes: a set that accepts everything
+# measures nothing, and this cap is what keeps `accept` from spreading.
+MAX_AMBIGUOUS_SHARE = 0.05
+
 
 def load_items() -> list[dict]:
     """The set as shipped, read at import so a missing or broken file fails loudly."""
@@ -61,13 +70,34 @@ def load_items() -> list[dict]:
 ITEMS = load_items()
 
 
+def expected_route(item: dict) -> str:
+    """The one route the set expects, in the same vocabulary the runner uses."""
+    expected = item["expected"]
+
+    if expected["kind"] == "regulation":
+        return "regulation"
+    if expected["kind"] == "reason":
+        return f"reason:{expected['reasoning']}"
+
+    return expected["tools"][0]
+
+
+def accepted_routes(item: dict) -> tuple[str, ...]:
+    """Every route the set accepts: one, or the several a genuinely ambiguous item names."""
+    if "accept" in item:
+        return tuple(item["accept"])
+
+    return (expected_route(item),)
+
+
 @dataclass(frozen=True)
 class Routing:
-    """One question's routing, next to the routing the set expects for it."""
+    """One question's routing, next to the routes the set accepts for it."""
 
     id: str
     question: str
-    expected_kind: str
+    accepted: tuple[str, ...]
+    expected_kind: str | None
     expected_tools: tuple[str, ...]
     expected_reasoning: str | None
     kind: str
@@ -75,8 +105,25 @@ class Routing:
     reasoning: str | None
 
     @property
+    def route(self) -> str:
+        """The route the regex took, in the same vocabulary the set is written in."""
+        if self.kind == "regulation":
+            return "regulation"
+        if self.kind == "reason":
+            return f"reason:{self.reasoning}"
+
+        return self.tools[0]
+
+    @property
     def problem(self) -> str | None:
         """What differs from the expectation, or None when the router agrees with it."""
+        if self.route in self.accepted:
+            return None
+
+        # An ambiguous item names no single route, so there is nothing to compare field by field.
+        if self.expected_kind is None:
+            return f"route: expected one of {list(self.accepted)}, got {self.route}"
+
         if self.kind != self.expected_kind:
             return f"kind: expected {self.expected_kind}, got {self.kind}"
 
@@ -94,7 +141,7 @@ class Routing:
 def route(item: dict) -> Routing:
     """Run the endpoint's entry point over one question and record what it decided."""
     request = detect_personal_request(item["question"])
-    expected = item["expected"]
+    expected = item.get("expected", {})
 
     if request is None:
         kind, tools = "regulation", ()
@@ -107,8 +154,9 @@ def route(item: dict) -> Routing:
     return Routing(
         id=item["id"],
         question=item["question"],
-        expected_kind=expected["kind"],
-        expected_tools=tuple(expected["tools"]),
+        accepted=accepted_routes(item),
+        expected_kind=expected.get("kind"),
+        expected_tools=tuple(expected.get("tools", ())),
         expected_reasoning=expected.get("reasoning"),
         kind=kind,
         tools=tools,
@@ -158,9 +206,9 @@ def test_every_question_routes_as_the_set_expects(item, routings):
 def test_the_set_is_large_enough_to_be_worth_running():
     assert len(ITEMS) >= MIN_ITEMS
 
-    kinds = Counter(item["expected"]["kind"] for item in ITEMS)
+    regulation = sum("regulation" in accepted_routes(item) for item in ITEMS)
 
-    assert kinds["regulation"] >= MIN_REGULATION_ITEMS
+    assert regulation >= MIN_REGULATION_ITEMS
 
 
 def test_every_id_is_unique_so_a_failure_names_one_question():
@@ -170,20 +218,53 @@ def test_every_id_is_unique_so_a_failure_names_one_question():
 
 
 def test_the_set_reaches_every_tool_in_the_catalogue():
-    covered = {tool for item in ITEMS for tool in item["expected"]["tools"]}
+    accepted = {route for item in ITEMS for route in accepted_routes(item)}
+    tools = accepted & set(TOOLS)
 
-    assert covered <= set(TOOLS), f"not in the catalogue: {sorted(covered - set(TOOLS))}"
-    assert set(TOOLS) <= covered, f"never asked: {sorted(set(TOOLS) - covered)}"
+    assert set(TOOLS) <= tools, f"never asked: {sorted(set(TOOLS) - tools)}"
 
 
 def test_the_set_reaches_every_reasoning_kind():
-    covered = {
-        item["expected"]["reasoning"]
+    kinds = {
+        route.removeprefix("reason:")
         for item in ITEMS
-        if item["expected"]["kind"] == "reason"
+        for route in accepted_routes(item)
+        if route.startswith("reason:")
     }
 
-    assert covered == set(REASONING_KINDS)
+    assert kinds == set(REASONING_KINDS)
+
+
+def test_every_accepted_route_is_one_the_router_can_answer():
+    for item in ITEMS:
+        for route in accepted_routes(item):
+            known = route in set(TOOLS) or route == "regulation"
+
+            assert known or route.startswith("reason:"), (
+                f"{item['id']} accepts {route}, which the router cannot answer"
+            )
+
+
+# --- the ambiguous items ---------------------------------------------------
+
+
+def test_at_most_one_item_in_twenty_accepts_several_routes():
+    """The cap on `accept`: a set that accepts everything measures nothing."""
+    ambiguous = [item for item in ITEMS if "accept" in item]
+
+    assert len(ambiguous) <= MAX_AMBIGUOUS_SHARE * len(ITEMS)
+
+
+def test_every_ambiguous_item_says_why_it_is_ambiguous():
+    for item in ITEMS:
+        if "accept" not in item:
+            continue
+
+        assert len(item["accept"]) > 1, f"{item['id']} accepts one route: use expected"
+        assert "expected" not in item, f"{item['id']} has both expected and accept"
+        assert item["ambiguous_reason"].strip(), (
+            f"{item['id']} accepts several routes without saying why"
+        )
 
 
 # --- the held-out set -----------------------------------------------------
