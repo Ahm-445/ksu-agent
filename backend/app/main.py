@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field, field_validator
 
 import answer
 from app.auth.routes import require_user, router as auth_router
-from app.tools import detect_personal_tool
+from app.tools import detect_personal_request
 
 LOGGER = logging.getLogger(__name__)
 
@@ -121,6 +121,17 @@ class ToolResponse(BaseModel):
     args: dict[str, Any] = Field(default_factory=dict)
 
 
+class ReasonResponse(BaseModel):
+    """The tools a reasoning question needs, in the contract's order.
+
+    Also nothing but names: the website runs these tools, shows the student what would
+    be sent, and asks for consent for this one question (ADR 0001, rule 5).
+    """
+
+    type: Literal["reason"] = "reason"
+    tools: list[str]
+
+
 @lru_cache
 def get_config() -> answer.ChatConfig:
     """The chat config, read from backend/config/chat.toml once."""
@@ -141,22 +152,26 @@ def get_client():
 
 @app.post(
     "/chat",
-    response_model=ChatResponse | ToolResponse,
+    response_model=ChatResponse | ToolResponse | ReasonResponse,
     dependencies=[Depends(require_user)],
 )
-def chat(request: ChatRequest) -> ChatResponse | ToolResponse:
-    """Answer one question: a tool request, or an answer from the regulation.
+def chat(request: ChatRequest) -> ChatResponse | ToolResponse | ReasonResponse:
+    """Answer one question: a tool request, a reasoning request, or an answer.
 
     Only for a signed-in student: require_user answers 401 before this runs.
     """
-    # A question about the student's own data becomes a tool request, and the values
-    # are read in their browser: no retrieval, no model, nothing personal here. Only
-    # the tool's name is logged — never the question, never a value.
-    tool = detect_personal_tool(request.message)
+    # A question about the student's own data becomes a tool or reasoning request, and
+    # the values are read in their browser: no retrieval, no model, nothing personal
+    # here. Only tool names are logged — never the question, never a value.
+    personal = detect_personal_request(request.message)
 
-    if tool is not None:
-        LOGGER.info("answered a question with the tool %s", tool)
-        return ToolResponse(tool=tool)
+    if personal is not None and personal.reasoning:
+        LOGGER.info("answered a reasoning question with the tools %s", personal.tools)
+        return ReasonResponse(tools=list(personal.tools))
+
+    if personal is not None:
+        LOGGER.info("answered a question with the tool %s", personal.tools[0])
+        return ToolResponse(tool=personal.tools[0])
 
     # Built here rather than through Depends: FastAPI solves dependencies before
     # the request body, so a dependency would load the index and the model client

@@ -7,7 +7,7 @@ about "المعدل التراكمي" or "شروط الحرمان" in general mu
 
 import pytest
 
-from app.tools import detect_personal_tool
+from app.tools import detect_personal_request, detect_personal_tool
 
 PERSONAL = {
     "get_gpa": [
@@ -182,3 +182,64 @@ def test_a_question_about_a_programmes_requirement_hours_is_not_a_tool():
     """The requirement hours of a programme are regulation, not the student's progress."""
     assert detect_personal_tool("ما هي متطلبات الجامعة؟") is None
     assert detect_personal_tool("كم ساعة يحتاج التخرج في هندسة البرمجيات؟") is None
+
+# A reasoning question needs values, not one page: the website runs every tool here and
+# asks the student before sending them (ADR 0001, rule 5).
+REASONING = [
+    ("هل أقدر أتخرج الفصل القادم؟", ("get_plan_progress", "get_gpa")),
+    ("متى أتخرج؟", ("get_plan_progress", "get_gpa")),
+    ("هل أنا قريب من الحرمان؟", ("get_absences",)),
+    ("كم غياب باقي لي قبل الحرمان في 434", ("get_absences",)),
+    ("كم أحتاج أجيب عشان يصير معدلي 4.5؟", ("get_gpa",)),
+    ("هل أنا تحت الإنذار؟", ("get_gpa",)),
+    ("هل عندي تعارض في الاختبارات النهائية؟", ("get_final_exams",)),
+    ("كيف أوزع وقتي هالأسبوع؟", ("get_assignments", "get_schedule")),
+    ("plan my week", ("get_assignments", "get_schedule")),
+    ("Can I graduate next term?", ("get_plan_progress", "get_gpa")),
+    ("When will I graduate?", ("get_plan_progress", "get_gpa")),
+    ("Am I close to being barred?", ("get_absences",)),
+    (
+        "How many absences do I have left before being barred in 434?",
+        ("get_absences",),
+    ),
+    ("What do I need to raise my GPA to 4.5?", ("get_gpa",)),
+    ("Am I on academic warning?", ("get_gpa",)),
+]
+
+
+@pytest.mark.parametrize(("message", "tools"), REASONING)
+def test_a_reasoning_question_names_its_tools(message, tools):
+    request = detect_personal_request(message)
+
+    assert request is not None
+    assert request.reasoning is True
+    assert request.tools == tools
+
+
+def test_a_factual_question_is_still_a_single_tool_reply():
+    request = detect_personal_request("ما معدلي")
+
+    assert request is not None
+    assert request.reasoning is False
+    assert request.tools == ("get_gpa",)
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["ما شروط الحرمان؟", "ما شروط التخرج؟", "كيف يُحسب المعدل التراكمي؟"],
+)
+def test_a_general_regulation_question_is_not_a_request(message):
+    """The rules about deprivation and graduation are regulation, not the student's data."""
+    assert detect_personal_request(message) is None
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["متى الواجب القادم في مادة 444", "هل عندي اختبار بكرة"],
+)
+def test_a_question_about_what_is_due_is_a_single_assignments_tool(message):
+    request = detect_personal_request(message)
+
+    assert request is not None
+    assert request.reasoning is False
+    assert request.tools == ("get_assignments",)

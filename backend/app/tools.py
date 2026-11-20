@@ -1,8 +1,15 @@
 """Which tool answers a question, decided by rules and not by the model.
 
-The backend only ever decides *which* tool to run: the values are read in the
+The backend only ever decides *which* tools to run: the values are read in the
 student's own browser (ADR 0001). This module is pure text matching — no model call,
 no I/O — so a question about the student's own GPA costs nothing to classify.
+
+Two kinds of question are answered from the student's own data. A *factual* one ("ما
+معدلي؟") reads one page, and the website answers it in the browser. A *reasoning* one
+("هل أقدر أتخرج الفصل القادم؟") compares values, so it reads one to three pages and
+needs the student's consent to send them. The reasoning patterns are checked first:
+"كم أحتاج أجيب عشان يصير معدلي 4.5؟" carries the possessive of the GPA question but
+asks for a target, not the GPA itself.
 
 Only a question about the student's *own* data maps to a tool. The regulation
 questions that mention the same words in general ("كم المعدل المطلوب للتخرج؟",
@@ -15,6 +22,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
 
 # Harakat, the superscript alef and tatweel carry no meaning for matching, and
 # students type them inconsistently.
@@ -23,6 +31,81 @@ _MARKS = re.compile(r"[\u0640\u064b-\u0655\u0670]")
 _ALEF_FORMS = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ى": "ي"})
 
 _ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+
+# --- Reasoning questions: what the student should do with their values -----------
+#
+# Each pattern needs the student's own situation, not a rule: "متى التخرج؟" is a
+# regulation answer, "متى أتخرج؟" is this student's plan and GPA.
+
+# "هل أقدر أتخرج الفصل القادم؟" / "متى أتخرج؟". `normalise` rewrites "ى" as "ي",
+# so the question is matched as "متي اتخرج". The question word is required: "كم المعدل
+# المطلوب عشان أتخرج؟" asks for a requirement, so it stays an ordinary answer.
+_ARABIC_GRADUATION = re.compile(
+    r"(?:متي|هل|اقدر|يمكن(?:ني)?)\s+(?:انا\s+)?(?:اقدر\s+)?اتخرج(?![\u0621-\u064a])"
+)
+
+# "can I graduate next term?", "when will I graduate?".
+_ENGLISH_GRADUATION = re.compile(
+    r"\b(?:can|could|will|would|do)\s+i\s+graduate\b"
+    r"|\bwhen\s+(?:will\s+|do\s+)?i\s+graduate\b"
+    r"|\bam\s+i\s+graduating\b"
+)
+
+# "هل أنا قريب من الحرمان؟" / "كم غياب باقي لي قبل الحرمان في 434". The regulation
+# question "ما شروط الحرمان؟" names no student, so it stays an ordinary answer.
+_ARABIC_NEAR_DEPRIVATION = re.compile(
+    r"(?:قريب(?:ة|ه)?|قربت)\s*(?:من|عن)\s*(?:ال)?حرمان"
+    r"|باقي\s*(?:لي|لنا)[^.?!]{0,30}حرمان"
+    r"|(?:كم|قد)\s*(?:غياب|غيابات)\s*(?:باقي|لي|لنا)"
+)
+
+# "am I close to being barred?", "how many absences do I have left before …?".
+_ENGLISH_NEAR_DEPRIVATION = re.compile(
+    r"\bam\s+i\b[^.?!]{0,40}\b(?:barred|deprived|deprivation)\b"
+    r"|\b(?:close|near)\s+to\s+(?:being\s+)?(?:barred|deprived)\b"
+    r"|\bhow\s+many\s+absences?\b[^.?!]{0,40}\b(?:left|before)\b"
+)
+
+# "كم أحتاج أجيب عشان يصير معدلي 4.5؟" asks for a target, and "هل أنا تحت
+# الإنذار؟" asks about the student's standing. The regulation questions "كيف يُحسب
+# المعدل التراكمي؟" and "ما هو الإنذار الأكاديمي؟" carry neither wording.
+_ARABIC_GPA_TARGET = re.compile(
+    r"(?:عشان|علشان|حتي)[^.?!]{0,10}(?:يصير|يكون|اوصل|ارفع)[^.?!]{0,25}معدل"
+    r"|انا[^.?!]{0,25}(?:ال)?انذار"
+    r"|(?:ال)?انذار[^.?!]{0,25}(?:انا|علي\s+وشك)"
+)
+
+# "what do I need to raise my GPA to 4.5?", "am I on academic warning?".
+_ENGLISH_GPA_TARGET = re.compile(
+    r"\bwhat\s+(?:do\s+i|grades?\s+do\s+i)\s+need\b[^.?!]{0,50}\b(?:gpa|average)\b"
+    r"|\b(?:raise|improve|bring\s+up)\s+my\s+(?:gpa|average)\b"
+    r"|\bam\s+i\s+(?:on|under)\s+(?:academic\s+)?warning\b"
+    r"|\bdo\s+i\s+need\b[^.?!]{0,40}\b(?:to\s+raise|for)\b[^.?!]{0,25}\bgpa\b"
+)
+
+# "هل عندي تعارض في الاختبارات النهائية؟": two exams at the same time is a
+# comparison of dates, so it needs the exam page and the schedule behind it.
+_ARABIC_EXAM_CONFLICT = re.compile(
+    r"تعارض[^.?!]{0,30}اختبار|اختبار[^.?!]{0,30}تعارض"
+)
+_ENGLISH_EXAM_CONFLICT = re.compile(
+    r"\b(?:exam|final)s?\b[^.?!]{0,30}\bconflict\b"
+    r"|\bconflict\b[^.?!]{0,30}\bexams?\b"
+)
+
+# "كيف أوزع وقتي هالأسبوع؟" / "plan my week": the due dates and the class
+# times are compared to fit the work into the week.
+_ARABIC_PLAN_WEEK = re.compile(
+    r"(?:اوزع|تنظيم|انظم|ارتب)[^.?!]{0,15}(?:وقتي|وقتنا)"
+    r"|(?:وقتي|وقتنا)[^.?!]{0,15}(?:هالاسبوع|الاسبوع|هذا\s+الاسبوع)"
+)
+_ENGLISH_PLAN_WEEK = re.compile(
+    r"\bplan\s+(?:my|out)\s+(?:week|time)\b"
+    r"|\b(?:organi[sz]e|schedule)\s+my\s+(?:week|time)\b"
+    r"|\bhow\s+(?:do\s+i|should\s+i)\s+(?:plan|organi[sz]e|manage)\b"
+)
+
+# --- Factual questions: one page, answered in the browser ----------------------
 
 # "معدلي" / "معدلنا": the possessive suffix is what makes the question personal.
 # The lookahead stops a longer word that merely starts the same way.
@@ -102,6 +185,24 @@ _ENGLISH_OWN_ASSIGNMENTS = re.compile(
     r"|\bupcoming\s+assignments?\b"
 )
 
+# "متى الواجب القادم في مادة 444" / "when is my next assignment in course 444": one
+# item on the LMS due dates page. The lookahead keeps "الواجبات" (above) out of it.
+_ARABIC_NEXT_ASSIGNMENT = re.compile(
+    r"الواجب\s+القادم(?![\u0621-\u064a])"
+)
+_ENGLISH_NEXT_ASSIGNMENT = re.compile(r"\bnext\s+assignment\b")
+
+# "هل عندي اختبار بكرة": whether anything is due tomorrow. The LMS due dates page
+# answers it, so the question reads one page and is answered in the browser.
+_ARABIC_EXAM_SOON = re.compile(
+    r"عندي\s+اختبار(?![\u0621-\u064a])"
+    r"|اختبار\s+(?:بكرة|بكره|غدا|الليلة)"
+)
+_ENGLISH_EXAM_SOON = re.compile(
+    r"\b(?:do\s+i\s+have|have\s+i\s+got)\s+an?\s+(?:exam|quiz|test)\b"
+    r"|\b(?:exam|quiz|test)\s+(?:tomorrow|today)\b"
+)
+
 # The LMS gradebook: named as "البلاك بورد" or "lms", or a single grade that only the
 # LMS's gradebook holds — a midterm, an assignment, a quiz. Without one of those the
 # question is about the Edugate course results, so "درجاتي" alone stays `get_grades`.
@@ -133,10 +234,53 @@ def normalise(message: str) -> str:
     return " ".join(text.split()).lower()
 
 
-def detect_personal_tool(message: str) -> str | None:
-    """The tool for a question about the student's own data, or None.
+@dataclass(frozen=True)
+class ToolRequest:
+    """What the website should run: the tools, and whether the question is reasoning.
 
-    None means "answer from the regulation": the caller runs retrieval and the model.
+    `reasoning` is False for a factual question, whose single tool the website answers
+    in the browser. True means the tools' values are compared for one answer, so they are
+    sent once, after the student approves that one question.
+    """
+
+    tools: tuple[str, ...]
+    reasoning: bool = False
+
+
+def detect_reasoning_tools(message: str) -> tuple[str, ...] | None:
+    """The tools a reasoning question needs, in the order the website runs them, or None.
+
+    None means the question is not a reasoning one: the caller then checks the factual
+    patterns, or answers from the regulation.
+    """
+    text = normalise(message)
+
+    if _ARABIC_GRADUATION.search(text) or _ENGLISH_GRADUATION.search(text):
+        return ("get_plan_progress", "get_gpa")
+
+    if _ARABIC_NEAR_DEPRIVATION.search(text) or _ENGLISH_NEAR_DEPRIVATION.search(
+        text
+    ):
+        return ("get_absences",)
+
+    if _ARABIC_GPA_TARGET.search(text) or _ENGLISH_GPA_TARGET.search(text):
+        return ("get_gpa",)
+
+    if _ARABIC_EXAM_CONFLICT.search(text) or _ENGLISH_EXAM_CONFLICT.search(text):
+        return ("get_final_exams",)
+
+    if _ARABIC_PLAN_WEEK.search(text) or _ENGLISH_PLAN_WEEK.search(text):
+        return ("get_assignments", "get_schedule")
+
+    return None
+
+
+def detect_personal_tool(message: str) -> str | None:
+    """The tool for a factual question about the student's own data, or None.
+
+    None means "not one page": either a reasoning question, which
+    `detect_personal_request` answers with its own tools, or a question about the
+    regulation, where the caller runs retrieval and the model.
     """
     text = normalise(message)
 
@@ -154,7 +298,9 @@ def detect_personal_tool(message: str) -> str | None:
     if _ARABIC_OWN_SCHEDULE.search(text) or _ENGLISH_OWN_SCHEDULE.search(text):
         return "get_schedule"
 
-    if _ARABIC_OWN_FINAL_EXAMS.search(text) or _ENGLISH_OWN_FINAL_EXAMS.search(text):
+    if _ARABIC_OWN_FINAL_EXAMS.search(text) or _ENGLISH_OWN_FINAL_EXAMS.search(
+        text
+    ):
         return "get_final_exams"
 
     if _ARABIC_OWN_ABSENCES.search(text) or _ENGLISH_OWN_ABSENCES.search(text):
@@ -163,10 +309,36 @@ def detect_personal_tool(message: str) -> str | None:
     if _ARABIC_OWN_PLAN.search(text) or _ENGLISH_OWN_PLAN.search(text):
         return "get_plan_progress"
 
-    if _ARABIC_OWN_ASSIGNMENTS.search(text) or _ENGLISH_OWN_ASSIGNMENTS.search(text):
+    if _ARABIC_OWN_ASSIGNMENTS.search(text) or _ENGLISH_OWN_ASSIGNMENTS.search(
+        text
+    ):
+        return "get_assignments"
+
+    if _ARABIC_NEXT_ASSIGNMENT.search(text) or _ENGLISH_NEXT_ASSIGNMENT.search(
+        text
+    ):
+        return "get_assignments"
+
+    if _ARABIC_EXAM_SOON.search(text) or _ENGLISH_EXAM_SOON.search(text):
         return "get_assignments"
 
     if _ARABIC_OWN_COURSES.search(text) or _ENGLISH_OWN_COURSES.search(text):
         return "get_courses"
 
     return None
+
+
+def detect_personal_request(message: str) -> ToolRequest | None:
+    """What the website should run for a question, or None for the regulation.
+
+    The endpoint's one entry point: the reasoning patterns are checked before the
+    factual ones, so a reasoning question is never answered from one page.
+    """
+    reasoning = detect_reasoning_tools(message)
+
+    if reasoning is not None:
+        return ToolRequest(tools=reasoning, reasoning=True)
+
+    tool = detect_personal_tool(message)
+
+    return None if tool is None else ToolRequest(tools=(tool,))

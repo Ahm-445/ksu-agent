@@ -88,6 +88,51 @@ def test_a_question_about_the_students_own_gpa_returns_the_tool(api):
     assert response.json() == {"type": "tool", "tool": "get_gpa", "args": {}}
     assert fake.calls == []
 
+def test_a_reasoning_question_returns_the_tools_it_needs(api):
+    """A reasoning question names its tools; the values are still read in the browser."""
+    client, fake = api(content=reply(True, "x"))
+
+    response = client.post("/chat", json={"message": "هل أقدر أتخرج الفصل القادم؟"})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "type": "reason",
+        "tools": ["get_plan_progress", "get_gpa"],
+    }
+    assert fake.calls == []
+
+
+def test_a_reasoning_request_builds_neither_the_retriever_nor_the_model(
+    api, monkeypatch
+):
+    client, fake = api(content=reply(True, "x"))
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("a reasoning request must not reach retrieval")
+
+    monkeypatch.setattr(main, "get_retriever", refuse)
+    monkeypatch.setattr(main, "get_client", refuse)
+
+    response = client.post(
+        "/chat", json={"message": "كم أحتاج أجيب عشان يصير معدلي 4.5؟"}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"type": "reason", "tools": ["get_gpa"]}
+    assert fake.calls == []
+
+
+def test_a_reasoning_request_logs_the_tools_and_never_the_question(api, caplog):
+    client, _fake = api(content=reply(True, "x"))
+    question = "هل أنا قريب من الحرمان هذا الفصل؟"
+
+    with caplog.at_level("INFO", logger="app.main"):
+        client.post("/chat", json={"message": question})
+
+    assert "get_absences" in caplog.text
+    assert question not in caplog.text
+    assert "الحرمان" not in caplog.text
+
 
 def test_unsupported_question_returns_the_fallback_without_citations(api):
     client, _fake = api(content=reply(False, ""))
