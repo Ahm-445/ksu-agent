@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VERSION } from "../src/config.js";
 import type { ActivityEntry } from "../src/storage.js";
-
+import { TOOL_CATEGORIES, TOOL_NAMES, type ToolName } from "../src/protocol.js";
 type Listener = (
   message: unknown,
   sender: { origin?: string },
@@ -19,6 +19,7 @@ const state: {
   stored: unknown;
   storageThrows: boolean;
   activity: unknown[];
+  writes: Array<Record<string, unknown>>;
   tabs: Array<{ id?: number }>;
   tabsQueryThrows: boolean;
   queries: Array<{ url: string }>;
@@ -29,6 +30,7 @@ const state: {
   stored: [],
   storageThrows: false,
   activity: [],
+  writes: [],
   tabs: [],
   tabsQueryThrows: false,
   queries: [],
@@ -69,6 +71,8 @@ vi.stubGlobal("chrome", {
         return stored;
       },
       set: async (items: Record<string, unknown>) => {
+        state.writes.push(items);
+
         if ("categoriesAllowed" in items) {
           state.stored = items.categoriesAllowed;
         }
@@ -901,5 +905,173 @@ describe("the reading badge", () => {
     await respondToMessage(RUN, "http://localhost:3000");
 
     expect(state.badge).toEqual([]);
+  });
+});
+
+describe("what a session leaves in chrome.storage.local", () => {
+  const SENTINEL = "SENT-9q";
+
+  // Every field of every tool carries the sentinel, so a value written anywhere shows up.
+  const SENTINEL_DATA: Record<ToolName, Record<string, unknown>> = {
+    get_gpa: {
+      cumulative_gpa: SENTINEL,
+      scale: SENTINEL,
+      earned_hours: 96,
+      registered_hours: 99,
+      as_of_term: SENTINEL,
+    },
+    get_grades: {
+      term: SENTINEL,
+      courses: [{ code: SENTINEL, name: SENTINEL, grade: SENTINEL }],
+    },
+    get_lms_grades: {
+      courses: [
+        {
+          code: SENTINEL,
+          name: SENTINEL,
+          items: [
+            { title: SENTINEL, score: 8.5, possible: 10, status: SENTINEL },
+          ],
+        },
+      ],
+    },
+    get_schedule: {
+      term: SENTINEL,
+      classes: [
+        {
+          code: SENTINEL,
+          name: SENTINEL,
+          activity: SENTINEL,
+          section: SENTINEL,
+          days: [1],
+          start: SENTINEL,
+          end: SENTINEL,
+        },
+      ],
+    },
+    get_final_exams: {
+      exams: [
+        {
+          code: SENTINEL,
+          name: SENTINEL,
+          day: SENTINEL,
+          date: SENTINEL,
+          time: SENTINEL,
+          location: SENTINEL,
+        },
+      ],
+    },
+    get_absences: {
+      courses: [
+        {
+          code: SENTINEL,
+          name: SENTINEL,
+          absence_percent: 10,
+          absences: 3,
+          lates: 0,
+        },
+      ],
+    },
+    get_plan_progress: {
+      completed_hours: 96,
+      remaining_hours: 3,
+      remaining_courses: [
+        {
+          code: SENTINEL,
+          name: SENTINEL,
+          hours: 3,
+          group: SENTINEL,
+          type: SENTINEL,
+          level: SENTINEL,
+        },
+      ],
+    },
+    get_courses: {
+      courses: [{ code: SENTINEL, name: SENTINEL, sections: [SENTINEL] }],
+    },
+    get_assignments: {
+      items: [{ title: SENTINEL, course: SENTINEL, due_at: SENTINEL }],
+    },
+  };
+
+  beforeEach(() => {
+    state.stored = Array.from(new Set(Object.values(TOOL_CATEGORIES)));
+    state.storageThrows = false;
+    state.activity = [];
+    state.writes = [];
+    state.badge = [];
+    state.tabs = [{ id: 7 }];
+  });
+
+  it("holds the consent list and the activity labels after all nine tools, and no value", async () => {
+    const answers: unknown[] = [];
+
+    for (const [index, tool] of TOOL_NAMES.entries()) {
+      state.sendMessage = (_tabId, _message, callback) =>
+        callback({ ok: true, data: SENTINEL_DATA[tool] });
+
+      answers.push(
+        await respondToMessage(
+          { kind: "run_tool", request_id: `r-${index}`, tool, args: {} },
+          "http://localhost:3000",
+        ),
+      );
+    }
+
+    // The session really carried every value: the answer to the website has it.
+    expect(answers).toHaveLength(TOOL_NAMES.length);
+    expect(JSON.stringify(answers)).toContain(SENTINEL);
+
+    // Everything the session wrote, next to the consent list it read.
+    const stored = Object.assign(
+      { categoriesAllowed: state.stored },
+      ...state.writes,
+    );
+
+    expect(Object.keys(stored).sort()).toEqual(["activity", "categoriesAllowed"]);
+    expect(JSON.stringify(stored)).not.toContain(SENTINEL);
+
+    const activity = stored.activity as ActivityEntry[];
+    expect(activity).toHaveLength(TOOL_NAMES.length);
+
+    for (const entry of activity) {
+      expect(Object.keys(entry).sort()).toEqual([
+        "at",
+        "category",
+        "kind",
+        "outcome",
+        "tool",
+      ]);
+    }
+
+    expect(activity.map((entry) => entry.tool).sort()).toEqual(
+      [...TOOL_NAMES].sort(),
+    );
+  });
+
+  it("records only the error code when a read fails", async () => {
+    state.sendMessage = (_tabId, _message, callback) =>
+      callback({ ok: false, error: "page_unreadable" });
+
+    await respondToMessage(
+      { kind: "run_tool", request_id: "r-1", tool: "get_absences", args: {} },
+      "http://localhost:3000",
+    );
+
+    const stored = Object.assign(
+      { categoriesAllowed: state.stored },
+      ...state.writes,
+    );
+
+    expect(JSON.stringify(stored)).not.toContain(SENTINEL);
+    expect(stored.activity).toEqual([
+      {
+        at: expect.any(String),
+        kind: "read",
+        category: "attendance",
+        tool: "get_absences",
+        outcome: "page_unreadable",
+      },
+    ]);
   });
 });
