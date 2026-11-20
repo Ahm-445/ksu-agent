@@ -32,7 +32,6 @@ from app.auth.routes import require_user, router as auth_router
 from app.auth.store import User
 from app.tools import ToolRequest, detect_personal_request
 from app.with_data import DataError, data_size, validate_data
-from app.with_data import DataError, data_size, validate_data
 
 LOGGER = logging.getLogger(__name__)
 
@@ -97,12 +96,12 @@ def _message_validation_code(exc: RequestValidationError) -> str | None:
 def _validation_code(exc: RequestValidationError) -> str:
     """The short code for a rejected body, whatever field it was.
 
+    FastAPI's own 422 body repeats the offending input, and on /chat/with-data that input is
     a value the student approved for one answer (ADR 0001, rule 2), so both answer paths
     always answer with a code: `data_invalid` for a `data` the contract does not allow,
     `route_invalid` for a `route_token` that does not bind this question to this student,
     `bad_request` for anything else, such as a body that is not JSON.
     """
-    code = _message_validation_code(exc)
     code = _message_validation_code(exc)
     if code is not None:
         return code
