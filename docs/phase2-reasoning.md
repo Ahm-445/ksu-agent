@@ -23,10 +23,18 @@ card's wording. The API shapes are in [the contract](api-contract.md#post-chatwi
    `sessionStorage`, never the URL, never the message list.
 5. The student decides for **this one question**:
    - **Approve** — `POST /chat/with-data` with `data` holding one entry per tool the reply
-     named. The backend validates every value against the contract's fields, adds it to the
-     prompt in a user block between `<student_data>` tags, and answers from the same
-     pipeline, citing the regulation. The card is gone before the request starts, so it
-     cannot be approved twice.
+     named. The backend validates every value against the contract's fields, computes the
+     numbers in code (`backend/app/facts.py`) and answers a verdict question — absences,
+     academic warning, graduation, a GPA target, an exam clash — from a fixed template,
+     with **no model call at all**: the numbers are the same every time and no reply can
+     add one of its own. The citations come from the articles the template states, taken
+     from the retrieved chunk, or from the regulation's own title and URL in
+     `backend/config/sources.toml` when retrieval missed it. A question no rule answers
+     (planning the week) still goes to the model, which phrases the computed plan, with the
+     values in a user block between `<student_data>` tags. The reply's `basis` is
+     `"regulation"` when an article answers the question and `"student_data"` when the
+     student's own numbers are all there is, and the answer then says so. The card is gone
+     before the request starts, so it cannot be approved twice.
    - **Cancel** — nothing is sent. The chat answers from the templates that already exist
      for each tool (`frontend/src/lib/personalAnswers.ts`), and the answer carries
      «لم يُرسل شيء إلى الخادم».

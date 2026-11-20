@@ -92,10 +92,15 @@ request:  {
     "get_plan_progress": { "completed_hours": 96, "remaining_hours": 3, "remaining_courses": [] }
   }
 }
-response: { "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ] }
+response: { "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ], "basis": "regulation" }
 ```
 
 There is no `tool` field: the tool names are the keys of `data`.
+
+`basis` says what the answer rests on: `"regulation"` when the regulation answers
+the question, `"student_data"` when the student's own numbers are all there is (an
+exam clash, for example) and the answer then ends with a sentence saying so. A
+response without `basis` is a regulation answer.
 
 - The keys of `data` must equal the tools the `/chat` reply named in `tools`, one
   entry each. A missing entry is `data_missing`; a key the reply did not name is
@@ -107,6 +112,13 @@ Rules:
 
 - Sent only after the student approves **this one question** in the consent step.
   There is no standing approval and no batching.
+- A verdict question — absences, academic warning, graduation, a GPA target, an exam
+  clash — is answered from the computed numbers and a fixed template, with **no model
+  call**: the numbers and the sentences are the same every time, so no reply can add a
+  number of its own. Retrieval still runs, for the citations: an article the template
+  states is cited from the retrieved chunk, and, when retrieval missed it, from the
+  regulation's own title and URL in `backend/config/sources.toml`. A question no rule
+  answers (`plan_week`) still goes to the model, which phrases the computed plan.
 - The backend uses `data` in memory for this one answer only: never stored, never
   logged (see Privacy guarantees below).
 - 401 without login.
