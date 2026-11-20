@@ -78,6 +78,10 @@ The response gains a `type` field; nothing else about Phase 1 changes.
 
 The request is unchanged: `{ message, session_id }`, with the same 401 and 422 codes.
 
+A 503 answers a failure of the answer service itself: a missing index, a missing API key,
+or a model call that fails. Only the exception's type is logged, never its message, so a
+question or a value in it cannot reach a log line.
+
 ### POST /chat/with-data — reasoning questions only
 
 Used only when a question needs reasoning over the student's own values, for example

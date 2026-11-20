@@ -243,34 +243,28 @@ def chat(request: ChatRequest) -> ChatResponse | ToolResponse | ReasonResponse:
         LOGGER.info("answered a question with the tool %s", personal.tools[0])
         return ToolResponse(tool=personal.tools[0])
 
-    # Built here rather than through Depends: FastAPI solves dependencies before
-    # the request body, so a dependency would load the index and the model client
-    # for a body it then rejects with a 422. Called after validation, a rejected
-    # request costs nothing.
-    retriever = get_retriever()
-    client = get_client()
+    # Built here rather than through Depends: FastAPI solves dependencies before the
+    # request body, so a dependency would load the index and the model client for a
+    # body it then rejects with a 422. Called after validation, a rejected request
+    # costs nothing.
+    # All of it runs inside the try, the index and the key included: a missing index file,
+    # a missing API key and anything unexpected answer the same 503. Only the exception's
+    # type is logged, because an error's message can carry the question and uvicorn logs a
+    # chained traceback with it.
     try:
         result = answer.answer_question(
             request.message,
-            retriever=retriever,
-            client=client,
+            retriever=get_retriever(),
+            client=get_client(),
             config=get_config(),
             source=get_source(),
         )
-    except answer.ModelUnavailable as exc:
-        LOGGER.error("chat failed: %s", exc)
+    except Exception as exc:
+        LOGGER.error("chat failed: %s", type(exc).__name__)
         raise HTTPException(
             status_code=503,
             detail="the answer service is unavailable; please try again",
-        ) from exc
-    except (OSError, ValueError, RuntimeError) as exc:
-        # Retrieval or index trouble: say the service is down rather than answer
-        # without the regulation behind it.
-        LOGGER.error("chat failed: %s: %s", type(exc).__name__, exc)
-        raise HTTPException(
-            status_code=503,
-            detail="the answer service is unavailable; please try again",
-        ) from exc
+        ) from None
     LOGGER.info(
         "answered a %d-character question with %d citation(s)",
         len(request.message),
