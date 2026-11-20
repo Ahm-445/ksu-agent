@@ -14,6 +14,8 @@ import answer
 from app.intent import (
     ALLOWED_ROUTES,
     INTENT_TIMEOUT_SECONDS,
+    SELF_REFERENCE_RULE,
+    SYSTEM_PROMPT,
     classify,
     request_for,
     route_name,
@@ -188,6 +190,40 @@ def test_the_prompt_says_a_rule_question_is_regulation():
 
     assert "regulation" in prompt
     assert "condition" in prompt or "policy" in prompt
+
+
+def test_the_prompt_puts_the_self_reference_rule_in_front_of_the_model():
+    """A tool or reasoning route reads the student's pages: it needs a first-person question."""
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert SELF_REFERENCE_RULE in SYSTEM_PROMPT
+    assert "self-reference" in prompt
+    assert "first-person" in prompt
+
+    for marker in ("معدلي", "جدولي", "غيابي", "عندي", "أتخرج", "my"):
+        assert marker in SELF_REFERENCE_RULE, f"the rule never names {marker}"
+
+
+def test_the_rule_sends_a_general_question_about_the_exam_to_the_regulation():
+    prompt = SYSTEM_PROMPT.lower()
+
+    assert "the term, the university, or the final exam in general" in prompt
+
+
+@pytest.mark.parametrize(
+    ("question", "route"),
+    (
+        ("معدل الترم هذا كم ساعة؟", "regulation"),
+        ("When is the final exam period?", "regulation"),
+        ("كم معدلي؟", "get_gpa"),
+        ("متى الفاينل حقي؟", "get_final_exams"),
+    ),
+)
+def test_the_prompt_teaches_the_self_reference_rule_with_the_questions_it_missed(
+    question, route
+):
+    """The two questions the classifier moved between runs, each next to its first-person pair."""
+    assert f'- "{question}" -> {{"route": "{route}"}}' in SYSTEM_PROMPT
 
 
 # --- privacy ---------------------------------------------------------------

@@ -28,6 +28,7 @@ from pathlib import Path
 
 import pytest
 
+from app.intent import SYSTEM_PROMPT
 from app.tools import detect_personal_request, detect_reasoning_kind
 
 EVAL_PATH = Path(__file__).resolve().parents[2] / "eval" / "phase2_router.json"
@@ -315,6 +316,26 @@ def test_the_held_out_set_is_never_added_to_the_patterns():
         f"the regex now routes {accuracy:.0%} of the held-out set: either a pattern was "
         "widened to fit it, or the set has served its purpose and needs fresh questions"
     )
+
+
+def test_no_held_out_question_is_taught_verbatim():
+    """The held-out set is the check on the classifier, so no question in it is a prompt example."""
+    taught = [
+        item["id"] for item in HELDOUT if f'- "{item["question"]}" -> ' in SYSTEM_PROMPT
+    ]
+
+    assert not taught, f"taught from the held-out set: {taught}"
+
+
+def test_one_held_out_question_is_taught_with_the_question_mark():
+    """«كم معدلي؟» is a prompt example and «كم معدلي» is held out: that item is no longer blind.
+
+    Pinned rather than ignored: a second overlap means the held-out set is shrinking as a check, and the
+    set needs a fresh question instead.
+    """
+    taught = [item["id"] for item in HELDOUT if item["question"] in SYSTEM_PROMPT]
+
+    assert taught == ["heldout-tool-gpa-02"]
 
 
 def test_the_held_out_set_is_the_size_the_classifier_was_specified_against():

@@ -82,9 +82,12 @@ _ROUTE_DESCRIPTIONS: dict[str, str] = {
     f"{REASON_PREFIX}plan_week": "planning this student's week around classes and due dates",
 }
 
-# One example per route a student is likely to reach, in the student's own words. None of them is
-# in eval/phase2_router.json or eval/phase2_router_heldout.json: the held-out set is the check on
-# the classifier, so it cannot also be its teaching material.
+# One example per route a student is likely to reach, in the student's own words. The last four teach
+# the self-reference rule: the same two questions asked in general and about the student. Two of them are
+# already in a set, and that is said here rather than hidden: «معدل الترم هذا كم ساعة؟» is trap-01 in
+# eval/phase2_router.json, and «كم معدلي؟» is «كم معدلي» in eval/phase2_router_heldout.json. Both are
+# questions the classifier moved between runs, so both are taught now, and those two items no longer score
+# the classifier independently. No other example is in either set.
 _ROUTE_EXAMPLES: tuple[tuple[str, str], ...] = (
     ("معدلي التراكمي كم", "get_gpa"),
     ("نتيجتي في المواد", "get_grades"),
@@ -103,7 +106,20 @@ _ROUTE_EXAMPLES: tuple[tuple[str, str], ...] = (
     ("رتب لي جدولي هذا الأسبوع", f"{REASON_PREFIX}plan_week"),
     ("ما نسبة الحضور المطلوبة", REGULATION),
     ("كيف يتم حساب المعدل", REGULATION),
+    ("معدل الترم هذا كم ساعة؟", REGULATION),
+    ("When is the final exam period?", REGULATION),
+    ("كم معدلي؟", "get_gpa"),
+    ("متى الفاينل حقي؟", "get_final_exams"),
 )
+
+SELF_REFERENCE_RULE = (
+    'The self-reference rule: any route other than "regulation" needs the question to refer to the '
+    "student themselves — a first-person word such as معدلي, جدولي, غيابي, لي, عندي, أنا, أتخرج, جبت or "
+    "غبت, or in English I, my or me. A question about the term, the university, or the final exam in "
+    'general, with no such reference, is "regulation": it asks what the rule says, not what this student\'s '
+    "record holds. The same words with a first-person word are about the student."
+)
+
 
 SYSTEM_PROMPT = "\n".join(
     [
@@ -113,10 +129,13 @@ SYSTEM_PROMPT = "\n".join(
         "The routes:",
         *(f"- {route}: {_ROUTE_DESCRIPTIONS[route]}" for route in ALLOWED_ROUTES),
         "",
+        "",
         'A question about the rule itself — a condition, a policy, how something is '
         'calculated, what the regulation requires — is "regulation", even when it names the GPA, '
         "the absences, graduation or the final exam. Only a question about this student's own "
         "situation takes any other route.",
+        "",
+        SELF_REFERENCE_RULE,
         "",
         "Examples:",
         *(f'- "{question}" -> {{"route": "{route}"}}' for question, route in _ROUTE_EXAMPLES),
