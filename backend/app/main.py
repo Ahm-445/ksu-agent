@@ -23,8 +23,13 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 import answer
+from app import facts
 from app.auth.routes import require_user, router as auth_router
-from app.tools import detect_personal_request, detect_reasoning_tools
+from app.tools import (
+    detect_personal_request,
+    detect_reasoning_kind,
+    detect_reasoning_tools,
+)
 from app.with_data import DataError, data_size, validate_data
 
 LOGGER = logging.getLogger(__name__)
@@ -182,6 +187,12 @@ def get_client():
     return answer.make_client(get_config())
 
 
+@lru_cache
+def get_reasoning() -> facts.ReasoningConfig:
+    """The reasoning thresholds and fixed queries, read from reasoning.toml once."""
+    return facts.load_config()
+
+
 @app.post(
     "/chat",
     response_model=ChatResponse | ToolResponse | ReasonResponse,
@@ -269,11 +280,22 @@ def chat_with_data(request: WithDataRequest) -> ChatResponse:
     """
     started = time.monotonic()
 
+    kind = detect_reasoning_kind(request.message)
+
     try:
         data = validate_data(request.data, detect_reasoning_tools(request.message))
     except DataError as exc:
         LOGGER.info("rejected a with-data request: %s", exc.code)
         raise HTTPException(status_code=422, detail=exc.code) from exc
+
+    # The numbers are computed here, in code, and never by the model: the answer explains
+    # them and states no other number (app/facts.py). The extra queries are the kind's
+    # fixed ones, so no value of the student's is ever part of a query.
+    reasoning = get_reasoning()
+    computed = facts.build_facts(
+        kind, data, reasoning.thresholds, request.message
+    )
+    extra_queries = reasoning.retrieval.get(kind, ()) if kind else ()
 
     # Built inside the try: a missing index, a missing key and anything unexpected all answer
     # the same 503. Only the exception's type is logged: an unexpected error's message can
@@ -285,6 +307,9 @@ def chat_with_data(request: WithDataRequest) -> ChatResponse:
             client=get_client(),
             config=get_config(),
             student_data=data,
+            facts=computed,
+            extra_queries=extra_queries,
+            needs_regulation=facts.needs_regulation(kind),
         )
     except Exception as exc:
         LOGGER.error("with-data failed: %s", type(exc).__name__)
@@ -294,7 +319,8 @@ def chat_with_data(request: WithDataRequest) -> ChatResponse:
         ) from None
 
     LOGGER.info(
-        "answered a reasoning question with %s (%d bytes of data) in %d ms",
+        "answered a %s question with %s (%d bytes of data) in %d ms",
+        kind,
         ", ".join(data),
         data_size(data),
         round((time.monotonic() - started) * 1000),
