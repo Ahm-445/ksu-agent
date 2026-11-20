@@ -158,9 +158,9 @@ extension stored.
 Reading rules:
 
 - `days` uses `1` = Sunday … `7` = Saturday. Edugate uses 1–5 (Sunday–Thursday); 6 and 7
-  are allowed so other sources fit the same format. **Still to be confirmed on a real
-  Edugate page** (the page map says the number-to-day mapping must be verified before
-  release).
+  are allowed so other sources fit the same format. **Confirmed on a real Edugate page:
+  1 = Sunday … 5 = Thursday** — a date is matched to a schedule day by
+  `facts.contract_day(date)` (`isoweekday() % 7 + 1`), never by `isoweekday()` alone.
 - Numbers that Edugate shows as text stay strings (`cumulative_gpa`, `scale`); counts,
   hours and percentages are numbers. The absences page prints `نسبة الغياب` without the
   % sign (`11.86`); the number is returned as shown, between 0 and 100.

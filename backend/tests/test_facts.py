@@ -376,7 +376,7 @@ def week_data():
             "items": [
                 {"title": "واجب 3", "course": "SWE 483", "due_at": "2026-11-21T23:59:00+03:00"},
                 {"title": "واجب 4", "course": "SWE 483", "due_at": "2026-11-28T23:59:00+03:00"},
-                {"title": "كويز", "course": "SWE 444", "due_at": "2026-11-25T12:00:00+03:00"},
+                {"title": "كويز", "course": "SWE 444", "due_at": "2026-11-24T12:00:00+03:00"},
             ]
         },
         "get_schedule": {
@@ -386,6 +386,8 @@ def week_data():
                  "section": "1", "days": [1, 3], "start": "11:00", "end": "11:50"},
                 {"code": "SWE 444", "name": "قواعد البيانات", "activity": "محاضرة",
                  "section": "1", "days": [1], "start": "08:00", "end": "08:50"},
+                {"code": "SWE 421", "name": "شبكات", "activity": "محاضرة",
+                 "section": "1", "days": [5], "start": "09:00", "end": "09:50"},
             ],
         },
     }
@@ -428,23 +430,72 @@ def test_a_due_item_sits_under_its_own_day_with_a_readable_time():
 def test_the_class_slots_are_listed_per_day_and_sorted():
     result = facts.plan_week_facts(week_data(), now=NOW)
 
-    monday = result["days"][3]
-    assert monday["day"] == "الاثنين"
-    assert [slot["code"] for slot in monday["classes"]] == ["SWE 444", "SWE 483"]
-    assert monday["classes"][0]["start"] == "8:00 ص"
-    assert monday["classes"][0]["end_en"] == "8:50 AM"
+    sunday = result["days"][2]
+    assert sunday["day"] == "الأحد"
+    assert [slot["code"] for slot in sunday["classes"]] == ["SWE 444", "SWE 483"]
+    assert sunday["classes"][0]["start"] == "8:00 ص"
+    assert sunday["classes"][0]["end_en"] == "8:50 AM"
+
+
+def test_each_calendar_date_carries_the_schedule_day_it_is():
+    """A week from Friday 2026-11-20: Sunday is day 1 and Thursday is day 5, as Edugate numbers them."""
+    result = facts.plan_week_facts(week_data(), now=NOW)
+
+    by_date = {day["date"]: day for day in result["days"]}
+
+    friday = by_date["20 نوفمبر"]
+    assert friday["day"] == "الجمعة"
+    assert friday["classes"] == []
+    saturday = by_date["21 نوفمبر"]
+    assert saturday["day"] == "السبت"
+    assert saturday["classes"] == []
+
+    sunday = by_date["22 نوفمبر"]
+    assert sunday["day"] == "الأحد"
+    assert [slot["code"] for slot in sunday["classes"]] == ["SWE 444", "SWE 483"]
+
+    thursday = by_date["26 نوفمبر"]
+    assert thursday["day"] == "الخميس"
+    assert [slot["code"] for slot in thursday["classes"]] == ["SWE 421"]
+
+
+@pytest.mark.parametrize(
+    "date, expected",
+    [
+        (datetime(2026, 11, 20).date(), 6),  # Friday
+        (datetime(2026, 11, 21).date(), 7),  # Saturday
+        (datetime(2026, 11, 22).date(), 1),  # Sunday
+        (datetime(2026, 11, 23).date(), 2),  # Monday
+        (datetime(2026, 11, 24).date(), 3),  # Tuesday
+        (datetime(2026, 11, 25).date(), 4),  # Wednesday
+        (datetime(2026, 11, 26).date(), 5),  # Thursday
+    ],
+)
+def test_a_calendar_date_maps_to_the_schedule_day_edugate_numbers(date, expected):
+    assert facts.contract_day(date) == expected
 
 
 def test_a_due_item_carries_the_free_blocks_before_it():
-    """Wednesday's class runs 11:00-11:50, and the quiz is due at 12:00."""
+    """Tuesday's class runs 11:00-11:50 and the quiz is due at 12:00, so the morning is free."""
     result = facts.plan_week_facts(week_data(), now=NOW)
 
-    wednesday = result["days"][5]
-    quiz = wednesday["due"][0]
+    tuesday = result["days"][4]
+    assert tuesday["day"] == "الثلاثاء"
+    quiz = tuesday["due"][0]
     assert quiz["title"] == "كويز"
     assert [block["minutes"] for block in quiz["free_blocks"]] == [180]
     assert quiz["free_blocks"][0]["from"] == "8:00 ص"
     assert quiz["free_blocks"][0]["to"] == "11:00 ص"
+
+
+def test_a_free_block_is_said_in_hours_and_minutes():
+    """959 minutes is "16 ساعة و59 دقيقة", never "959 دقيقة"."""
+    result = facts.plan_week_facts(week_data(), now=NOW)
+
+    block = result["days"][4]["due"][0]["free_blocks"][0]
+    assert block["minutes"] == 180
+    assert block["duration"] == "3 ساعات"
+    assert block["duration_en"] == "3 h"
 
 
 def test_a_day_with_nothing_in_it_has_no_classes_and_no_due_items():

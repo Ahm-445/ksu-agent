@@ -747,7 +747,7 @@ def week_facts():
                     {
                         "title": "كويز",
                         "course": "SWE 444",
-                        "due_at": "2026-11-25T12:00:00+03:00",
+                        "due_at": "2026-11-24T12:00:00+03:00",
                     },
                 ]
             },
@@ -775,16 +775,27 @@ def test_the_week_template_puts_the_classes_before_the_due_item_of_each_day():
     assert "واجب 3" in saturday
     assert "11:59 م" in saturday
 
-    wednesday = text.split("- الأربعاء 25 نوفمبر")[1]
-    assert "هندسة البرمجيات" in wednesday
-    assert "11:00 ص-11:50 ص" in wednesday
+    tuesday = text.split("- الثلاثاء 24 نوفمبر")[1].split("- الأربعاء")[0]
+    assert "هندسة البرمجيات" in tuesday
+    assert "11:00 ص-11:50 ص" in tuesday
+    assert "كويز" in tuesday
+
+
+def test_the_week_template_puts_schedule_day_one_on_sunday():
+    """Edugate numbers 1 as Sunday, so the class listed on day 1 is a Sunday class."""
+    text = answer.template_answer(week_facts(), "كيف أوزع وقتي هالأسبوع؟")
+
+    sunday = text.split("- الأحد 22 نوفمبر")[1].split("- الاثنين")[0]
+    assert "هندسة البرمجيات" in sunday
+    assert "لا محاضرات ولا واجبات" not in sunday
 
 
 def test_the_week_template_suggests_a_free_block_before_the_due_time():
     text = answer.template_answer(week_facts(), "كيف أوزع وقتي هالأسبوع؟")
 
     assert "8:00 ص-11:00 ص" in text
-    assert "180 دقيقة" in text
+    assert "(3 ساعات)" in text
+    assert "180 دقيقة" not in text
 
 
 def test_the_week_template_states_no_iso_date():

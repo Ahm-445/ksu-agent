@@ -791,7 +791,7 @@ def _plan_week_template(facts: Mapping[str, Any], results) -> str:
             for block in item.get("free_blocks", []):
                 lines.append(
                     f"    فراغ قبل التسليم: {block.get('from')}-{block.get('to')} "
-                    f"({block.get('minutes')} دقيقة)"
+                    f"({block.get('duration')})"
                 )
         if not day.get("classes") and not day.get("due"):
             lines.append("  - لا محاضرات ولا واجبات مستحقة.")
@@ -925,7 +925,7 @@ def _english(kind: str, facts: Mapping[str, Any]) -> str:
                 for block in item.get("free_blocks", []):
                     lines.append(
                         f"    free before it: {block.get('from_en')}-{block.get('to_en')} "
-                        f"({block.get('minutes')} minutes)"
+                        f"({block.get('duration_en')})"
                     )
         return "\n".join(lines)
     return ""

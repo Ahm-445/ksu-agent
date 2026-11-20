@@ -388,6 +388,15 @@ def exam_conflicts_facts(data: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def contract_day(date) -> int:
+    """The schedule's number for a calendar date: 1 = Sunday … 7 = Saturday.
+
+    Edugate numbers its days that way (1 = Sunday, 5 = Thursday), while date.isoweekday()
+    counts Monday as 1, so a date matched to a schedule day goes through here and nowhere else.
+    """
+    return date.isoweekday() % 7 + 1
+
+
 def plan_week_facts(
     data: Mapping[str, Any], now: datetime | None = None
 ) -> dict[str, Any]:
@@ -418,7 +427,7 @@ def plan_week_facts(
     for offset in range(WEEK_DAYS):
         date = first_day + timedelta(days=offset)
         slots = sorted(
-            by_day.get(date.isoweekday(), []),
+            by_day.get(contract_day(date), []),
             key=lambda slot: slot.get("start") or "",
         )
         classes = [
@@ -495,7 +504,10 @@ def _minutes(hhmm: Any) -> int | None:
 
 
 def _weekday_text(date, lang: str = "ar") -> str:
-    """The weekday as the answer says it: "السبت" or "Sat"."""
+    """The weekday as the answer says it: "السبت" or "Sat".
+
+    The index is a name lookup only; matching a date to a schedule day goes through contract_day.
+    """
     return (_WEEKDAYS_AR if lang == "ar" else _WEEKDAYS_EN)[date.weekday()]
 
 
@@ -544,7 +556,35 @@ def _block_text(start: int, end: int) -> dict[str, Any]:
         "to": _clock_text(until),
         "to_en": _clock_text(until, "en"),
         "minutes": end - start,
+        "duration": _duration_text(end - start),
+        "duration_en": _duration_text(end - start, "en"),
     }
+
+
+def _duration_text(minutes: int, lang: str = "ar") -> str:
+    """A length of time as the answer says it: "16 ساعة و59 دقيقة" or "16 h 59 min"."""
+    hours, rest = divmod(minutes, 60)
+    if lang != "ar":
+        if not hours:
+            return f"{rest} min"
+        return f"{hours} h" + (f" {rest} min" if rest else "")
+    parts = []
+    if hours:
+        parts.append(_counted(hours, "ساعة", "ساعتان", "ساعات"))
+    if rest:
+        parts.append(_counted(rest, "دقيقة", "دقيقتان", "دقائق"))
+    return " و".join(parts)
+
+
+def _counted(number: int, one: str, two: str, few: str) -> str:
+    """An Arabic count that agrees with its noun: دقيقة, دقيقتان, 3 دقائق, 59 دقيقة."""
+    if number == 1:
+        return one
+    if number == 2:
+        return two
+    if 3 <= number <= 10:
+        return f"{number} {few}"
+    return f"{number} {one}"
 
 
 def _moment(value: Any) -> datetime | None:
