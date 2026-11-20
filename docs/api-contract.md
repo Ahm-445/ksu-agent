@@ -35,14 +35,15 @@ payload of the register 422, the cookie name and lifetime, and the exact shape o
 register 422 uses `{error, fields}` — worth agreeing on one shape before the auth work
 starts).
 
-## Phase 2 — partly implemented
+## Phase 2 — implemented
 
 Everything in this section is agreed in
 [ADR 0001](adr/0001-phase2-data-access.md) and planned in
-[the Phase 2 page map](phase2-page-map.md). The `/chat` response shapes and the tool
-catalogue below are implemented in `backend/app/main.py` and `backend/app/tools.py`;
-`/chat/with-data` and the consent step are specified here and described as built in
-[the reasoning step](phase2-reasoning.md).
+[the Phase 2 page map](phase2-page-map.md). All of it is built: the three `/chat`
+response shapes and the catalogue in `backend/app/main.py` and `backend/app/tools.py`,
+`/chat/with-data` in `backend/app/main.py` and `backend/app/with_data.py`, and the
+consent card in the front end. [The reasoning step](phase2-reasoning.md) describes the
+flow end to end, the questions the router recognises and the card's wording.
 
 ### POST /chat — three response shapes, chosen by `type`
 
@@ -119,49 +120,6 @@ Rules:
 | `data_too_large` | The whole request body is over 20 KB. |
 | `unknown_tool` | A key of `data` is not a catalogue tool, or is a tool the reply did not name. |
 | `data_invalid` | A value does not match its tool's catalogue shape: an extra key, a missing key or a wrong type. |
-
-The response gains a `type` field; nothing else about Phase 1 changes.
-
-```json
-{ "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ] }
-```
-
-```json
-{ "type": "tool", "tool": "get_gpa", "args": {} }
-```
-
-- `answer` — the Phase 1 shape, unchanged apart from the added `type`.
-- `tool` — asks the website to run `tool` through the extension (see the catalogue
-  below). The backend sends no personal data in this response and receives none in the
-  request; `args` is empty for every tool in the catalogue.
-- **Backward compatibility:** a response without `type` must be treated as
-  `"answer"`.
-
-The request is unchanged: `{ message, session_id }`, with the same 401 and 422 codes.
-
-### POST /chat/with-data — reasoning questions only
-
-Used only when a question needs reasoning over the student's own values, for example
-"can I graduate next term?". Factual questions (GPA, grades, schedule, deadlines) are
-answered in the browser from the tool result and never reach this endpoint.
-
-```json
-request:  { "message": "...", "session_id": "...", "tool": "get_gpa", "data": { } }
-response: { "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ] }
-```
-
-`data` carries the result fields of `tool` exactly as the catalogue below lists them —
-nothing more.
-
-Rules:
-
-- Sent only after the student approves **this one question** in the consent step.
-  There is no standing approval and no batching.
-- The backend uses `data` in memory for this one answer only: never stored, never
-  logged (see Privacy guarantees below).
-- 401 without login.
-- 422 with a short code: `message_empty`, `message_too_long`, `data_missing`,
-  `data_too_large` (over 20 KB), `unknown_tool`.
 
 ### Tool catalogue
 
