@@ -23,7 +23,7 @@ class FakeCompletions:
     """Stands in for client.chat.completions and records every request."""
 
     def __init__(self, content=None, error=None):
-        self.content = content
+        self.contents = list(content) if isinstance(content, list) else [content]
         self.error = error
         self.calls = []
 
@@ -31,8 +31,9 @@ class FakeCompletions:
         self.calls.append(kwargs)
         if self.error is not None:
             raise self.error
+        content = self.contents.pop(0) if len(self.contents) > 1 else self.contents[0]
         usage = SimpleNamespace(prompt_tokens=1200, completion_tokens=80)
-        message = SimpleNamespace(content=self.content, refusal=None)
+        message = SimpleNamespace(content=content, refusal=None)
         return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=usage)
 
 
@@ -103,6 +104,10 @@ def run(
     *,
     error=None,
     k=retrieve.DEFAULT_K,
+    student_data=None,
+    facts=None,
+    extra_queries=(),
+    needs_regulation=True,
     **config_overrides,
 ):
     """Call answer_question with fakes; returns the Answer and the fake client."""
@@ -114,6 +119,10 @@ def run(
         client=client,
         config=answer.load_config(write_config(tmp_path / "chat.toml", **config_overrides)),
         k=k,
+        student_data=student_data,
+        facts=facts,
+        extra_queries=extra_queries,
+        needs_regulation=needs_regulation,
     )
     return result, client, retriever
 
@@ -426,3 +435,86 @@ def test_cost_uses_the_configured_prices(tmp_path):
     )
     assert answer.estimate_cost(None, config) is None
     assert answer.estimate_cost(SimpleNamespace(), config) is None
+
+
+# --- the graduation template ---------------------------------------------
+
+
+GRADUATION_PLAN = {
+    "remaining_hours": 23,
+    "remaining_courses": [{"name": "مشروع تخرج -1", "type": "إجباري"}],
+}
+
+
+def graduation_facts(remaining_hours, thresholds):
+    from app import facts
+
+    return facts.graduation_facts(
+        {"get_plan_progress": dict(GRADUATION_PLAN, remaining_hours=remaining_hours)},
+        thresholds,
+    )
+
+
+def thresholds():
+    from app import facts
+
+    return {
+        "max_term_load": facts.Threshold(value=20, article=24),
+        "max_term_load_exception": facts.Threshold(value=24, article=24),
+    }
+
+
+ARTICLE_24 = make_result(
+    24,
+    "يكون الحد الأدنى للعبء الدراسي للطالب في الفصل الدراسي اثنتا عشرة وحدة دراسية "
+    "والحد الأعلى عشرون وحدة دراسية، ولعمادة شؤون القبول والتسجيل زيادة الحد الأعلى "
+    "لعبء الطالب في الفصل الدراسي بما لا يتجاوز أربعاً وعشرين وحدة دراسية.",
+)
+
+
+def test_the_template_for_twenty_three_hours_names_the_deanship_and_article_24():
+    text = answer.template_answer(
+        graduation_facts(23, thresholds()), "كم يتبقى لي؟", [ARTICLE_24]
+    )
+
+    assert "20" in text
+    assert "24" in text
+    assert "(المادة 24)" in text
+    assert "عمادة شؤون القبول والتسجيل" in text
+
+
+def test_the_template_for_eighteen_hours_says_one_term():
+    text = answer.template_answer(
+        graduation_facts(18, thresholds()), "كم يتبقى لي؟", [ARTICLE_24]
+    )
+
+    assert "فتتخرج في فصل واحد" in text
+    assert "عمادة شؤون القبول والتسجيل" not in text
+
+
+def test_the_template_for_twenty_five_hours_says_no_approval_holds_it():
+    text = answer.template_answer(
+        graduation_facts(25, thresholds()), "كم يتبقى لي؟", [ARTICLE_24]
+    )
+
+    assert "24" in text
+    assert "بموافقتها" not in text
+
+
+def test_the_graduation_prompt_explains_the_exception():
+    messages = answer.build_messages(
+        "كم يتبقى لي؟", [ARTICLE_24], facts=graduation_facts(23, thresholds())
+    )
+
+    assert answer.GRADUATION_RULES in messages[0]["content"]
+    assert "needs_exception" in messages[0]["content"]
+
+
+def test_another_kind_gets_no_graduation_rule():
+    messages = answer.build_messages(
+        "كم غيابي؟",
+        [ARTICLE_24],
+        facts={"kind": "absences", "limit_percent": 25, "courses": []},
+    )
+
+    assert answer.GRADUATION_RULES not in messages[0]["content"]
