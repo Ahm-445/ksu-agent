@@ -1,0 +1,810 @@
+[
+  {
+    "id": "reason-graduation-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل أقدر أتخرج الفصل القادم؟",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "The question the consent flow was designed around."
+  },
+  {
+    "id": "reason-graduation-02",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "أقدر أتخرج هالترم؟",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "Hijazi: the question word is dropped, the verb stays."
+  },
+  {
+    "id": "reason-graduation-03",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "متى أتخرج؟",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "Possessive verb: the student's own date, not the regulation's."
+  },
+  {
+    "id": "reason-graduation-04",
+    "lang": "ar",
+    "dialect": "gulf",
+    "question": "يمكنني أتخرج السنة الجاية؟",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "Gulf: يمكنني plus the verb."
+  },
+  {
+    "id": "reason-graduation-05",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل بإمكاني التخرج هذا العام؟",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "The masdar with ال after بإمكاني: a person, not a rule."
+  },
+  {
+    "id": "reason-graduation-06",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل أستطيع التخرج بعد فصلين؟",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "أستطيع التخرج, the other common way to ask."
+  },
+  {
+    "id": "reason-graduation-07",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "كم باقي لي عشان أتخرج؟",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "Najdi: the plan's remaining hours and the GPA, one answer."
+  },
+  {
+    "id": "reason-graduation-08",
+    "lang": "en",
+    "dialect": "en",
+    "question": "Can I graduate next semester?",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "The English form of the same question."
+  },
+  {
+    "id": "reason-graduation-09",
+    "lang": "en",
+    "dialect": "en",
+    "question": "When will I graduate?",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "When + I graduate."
+  },
+  {
+    "id": "reason-graduation-10",
+    "lang": "en",
+    "dialect": "en",
+    "question": "Is it possible for me to graduate this year?",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "Is it possible for me to graduate: no can/will, still personal."
+  },
+  {
+    "id": "reason-graduation-11",
+    "lang": "en",
+    "dialect": "en",
+    "question": "Am I graduating this term?",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "The progressive form."
+  },
+  {
+    "id": "reason-absences-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل أنا قريب من الحرمان؟",
+    "expected": { "kind": "reason", "reasoning": "absences", "tools": ["get_absences"] },
+    "note": "The absence verdict."
+  },
+  {
+    "id": "reason-absences-02",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم غياب باقي لي قبل الحرمان في مادة 434؟",
+    "expected": { "kind": "reason", "reasoning": "absences", "tools": ["get_absences"] },
+    "note": "A course named, the question still personal."
+  },
+  {
+    "id": "reason-absences-03",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "أنا قربت من الحرمان؟",
+    "expected": { "kind": "reason", "reasoning": "absences", "tools": ["get_absences"] },
+    "note": "Hijazi: قربت من."
+  },
+  {
+    "id": "reason-absences-04",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "كم غياب باقي لي؟",
+    "expected": { "kind": "reason", "reasoning": "absences", "tools": ["get_absences"] },
+    "note": "Najdi: no mention of the limit, still the student's own count."
+  },
+  {
+    "id": "reason-absences-05",
+    "lang": "ar",
+    "dialect": "gulf",
+    "question": "هل تجاوزت نسبة الغياب المسموح بها؟",
+    "expected": { "kind": "reason", "reasoning": "absences", "tools": ["get_absences"] },
+    "note": "The verdict asked as a comparison against the allowed percentage."
+  },
+  {
+    "id": "reason-absences-06",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل أنا على وشك الحرمان من الاختبار النهائي؟",
+    "expected": { "kind": "reason", "reasoning": "absences", "tools": ["get_absences"] },
+    "note": "على وشك الحرمان."
+  },
+  {
+    "id": "reason-absences-07",
+    "lang": "en",
+    "dialect": "en",
+    "question": "Am I close to being barred from the final exam?",
+    "expected": { "kind": "reason", "reasoning": "absences", "tools": ["get_absences"] },
+    "note": "The English verdict."
+  },
+  {
+    "id": "reason-absences-08",
+    "lang": "en",
+    "dialect": "en",
+    "question": "How many absences do I have left before I am deprived?",
+    "expected": { "kind": "reason", "reasoning": "absences", "tools": ["get_absences"] },
+    "note": "How many … left before."
+  },
+  {
+    "id": "reason-gpa-target-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم أحتاج أجيب عشان يصير معدلي 4.5؟",
+    "expected": { "kind": "reason", "reasoning": "gpa_target", "tools": ["get_gpa"] },
+    "note": "The required average, not the GPA itself."
+  },
+  {
+    "id": "reason-gpa-target-02",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "كم لازم أجيب عشان يصير معدلي 4؟",
+    "expected": { "kind": "reason", "reasoning": "gpa_target", "tools": ["get_gpa"] },
+    "note": "Hijazi: كم لازم أجيب."
+  },
+  {
+    "id": "reason-gpa-target-03",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "أبي أرفع معدلي إلى 4.5، كم أحتاج؟",
+    "expected": { "kind": "reason", "reasoning": "gpa_target", "tools": ["get_gpa"] },
+    "note": "Najdi: the target named first, the question after."
+  },
+  {
+    "id": "reason-gpa-target-04",
+    "lang": "ar",
+    "dialect": "gulf",
+    "question": "وش المعدل اللي أحتاجه عشان أوصل معدلي 4.8؟",
+    "expected": { "kind": "reason", "reasoning": "gpa_target", "tools": ["get_gpa"] },
+    "note": "Gulf: وش المعدل اللي أحتاجه."
+  },
+  {
+    "id": "reason-gpa-target-05",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم يجب أن أحصل عليه في الفصل القادم لرفع معدلي التراكمي إلى 4.5؟",
+    "expected": { "kind": "reason", "reasoning": "gpa_target", "tools": ["get_gpa"] },
+    "note": "MSA: لرفع معدلي, no عشان."
+  },
+  {
+    "id": "reason-gpa-target-06",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What do I need to raise my GPA to 4.5?",
+    "expected": { "kind": "reason", "reasoning": "gpa_target", "tools": ["get_gpa"] },
+    "note": "The English target question."
+  },
+  {
+    "id": "reason-gpa-target-07",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What grades do I need to get my GPA to 4.8?",
+    "expected": { "kind": "reason", "reasoning": "gpa_target", "tools": ["get_gpa"] },
+    "note": "What grades do I need."
+  },
+  {
+    "id": "reason-gpa-target-08",
+    "lang": "en",
+    "dialect": "en",
+    "question": "How can I bring up my GPA to 4.5?",
+    "expected": { "kind": "reason", "reasoning": "gpa_target", "tools": ["get_gpa"] },
+    "note": "Bring up my GPA."
+  },
+  {
+    "id": "reason-warning-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل أنا تحت الإنذار؟",
+    "expected": { "kind": "reason", "reasoning": "academic_warning", "tools": ["get_gpa"] },
+    "note": "The warning verdict."
+  },
+  {
+    "id": "reason-warning-02",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "أنا تحت الإنذار ولا لا؟",
+    "expected": { "kind": "reason", "reasoning": "academic_warning", "tools": ["get_gpa"] },
+    "note": "Hijazi: the tag question at the end."
+  },
+  {
+    "id": "reason-warning-03",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "هل أنا على وشك الإنذار الأكاديمي؟",
+    "expected": { "kind": "reason", "reasoning": "academic_warning", "tools": ["get_gpa"] },
+    "note": "On the verge of the warning."
+  },
+  {
+    "id": "reason-warning-04",
+    "lang": "ar",
+    "dialect": "gulf",
+    "question": "هل أنا في قائمة الإنذار الأكاديمي؟",
+    "expected": { "kind": "reason", "reasoning": "academic_warning", "tools": ["get_gpa"] },
+    "note": "The list, not the rule."
+  },
+  {
+    "id": "reason-warning-05",
+    "lang": "en",
+    "dialect": "en",
+    "question": "Am I on academic warning?",
+    "expected": { "kind": "reason", "reasoning": "academic_warning", "tools": ["get_gpa"] },
+    "note": "The English verdict."
+  },
+  {
+    "id": "reason-warning-06",
+    "lang": "en",
+    "dialect": "en",
+    "question": "Am I under warning this semester?",
+    "expected": { "kind": "reason", "reasoning": "academic_warning", "tools": ["get_gpa"] },
+    "note": "Under warning, without the word academic."
+  },
+  {
+    "id": "reason-conflict-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل عندي تعارض في الاختبارات النهائية؟",
+    "expected": { "kind": "reason", "reasoning": "exam_conflicts", "tools": ["get_final_exams"] },
+    "note": "The clash question."
+  },
+  {
+    "id": "reason-conflict-02",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل عندي تعارض بين اختبارين؟",
+    "expected": { "kind": "reason", "reasoning": "exam_conflicts", "tools": ["get_final_exams"] },
+    "note": "Two exams, same time."
+  },
+  {
+    "id": "reason-conflict-03",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "عندي تعارض في الفاينل؟",
+    "expected": { "kind": "reason", "reasoning": "exam_conflicts", "tools": ["get_final_exams"] },
+    "note": "Hijazi names the final exams الفاينل, not اختبارات."
+  },
+  {
+    "id": "reason-conflict-04",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "هل يتعارض موعد اختباراتي النهائية؟",
+    "expected": { "kind": "reason", "reasoning": "exam_conflicts", "tools": ["get_final_exams"] },
+    "note": "The verb يتعارض, not the noun تعارض."
+  },
+  {
+    "id": "reason-conflict-05",
+    "lang": "en",
+    "dialect": "en",
+    "question": "Do I have any exam conflicts?",
+    "expected": { "kind": "reason", "reasoning": "exam_conflicts", "tools": ["get_final_exams"] },
+    "note": "The English clash question."
+  },
+  {
+    "id": "reason-conflict-06",
+    "lang": "en",
+    "dialect": "en",
+    "question": "Are my final exams clashing?",
+    "expected": { "kind": "reason", "reasoning": "exam_conflicts", "tools": ["get_final_exams"] },
+    "note": "Clashing, not conflict."
+  },
+  {
+    "id": "reason-week-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كيف أوزع وقتي هالأسبوع؟",
+    "expected": { "kind": "reason", "reasoning": "plan_week", "tools": ["get_assignments", "get_schedule"] },
+    "note": "The week plan."
+  },
+  {
+    "id": "reason-week-02",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "ساعدني أنظم وقتي هذا الأسبوع",
+    "expected": { "kind": "reason", "reasoning": "plan_week", "tools": ["get_assignments", "get_schedule"] },
+    "note": "Hijazi: أنظم وقتي."
+  },
+  {
+    "id": "reason-week-03",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "أبغى أرتّب وقتي بين المذاكرة والواجبات",
+    "expected": { "kind": "reason", "reasoning": "plan_week", "tools": ["get_assignments", "get_schedule"] },
+    "note": "Najdi: أرتّب وقتي."
+  },
+  {
+    "id": "reason-week-04",
+    "lang": "ar",
+    "dialect": "gulf",
+    "question": "وش أفضل طريقة أوزع فيها وقتي؟",
+    "expected": { "kind": "reason", "reasoning": "plan_week", "tools": ["get_assignments", "get_schedule"] },
+    "note": "Gulf: the plan asked as a question about the method."
+  },
+  {
+    "id": "reason-week-05",
+    "lang": "en",
+    "dialect": "en",
+    "question": "Help me plan my week.",
+    "expected": { "kind": "reason", "reasoning": "plan_week", "tools": ["get_assignments", "get_schedule"] },
+    "note": "The English week plan."
+  },
+  {
+    "id": "reason-week-06",
+    "lang": "en",
+    "dialect": "en",
+    "question": "How should I manage my time this week?",
+    "expected": { "kind": "reason", "reasoning": "plan_week", "tools": ["get_assignments", "get_schedule"] },
+    "note": "Manage my time."
+  },
+  {
+    "id": "tool-gpa-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما معدلي التراكمي؟",
+    "expected": { "kind": "tool", "tools": ["get_gpa"] },
+    "note": "The factual GPA question."
+  },
+  {
+    "id": "tool-gpa-02",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "كم معدلي؟",
+    "expected": { "kind": "tool", "tools": ["get_gpa"] },
+    "note": "Hijazi: the shortest form."
+  },
+  {
+    "id": "tool-gpa-03",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What's my GPA?",
+    "expected": { "kind": "tool", "tools": ["get_gpa"] },
+    "note": "The English GPA question."
+  },
+  {
+    "id": "tool-grades-01",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "وش درجاتي هذا الترم؟",
+    "expected": { "kind": "tool", "tools": ["get_grades"] },
+    "note": "The course results page."
+  },
+  {
+    "id": "tool-grades-02",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "درجات المواد الفصل هذا؟",
+    "expected": { "kind": "tool", "tools": ["get_grades"] },
+    "note": "درجات المواد, the page's own name."
+  },
+  {
+    "id": "tool-grades-03",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What are my grades?",
+    "expected": { "kind": "tool", "tools": ["get_grades"] },
+    "note": "The English course results question."
+  },
+  {
+    "id": "tool-lms-grades-01",
+    "lang": "ar",
+    "dialect": "gulf",
+    "question": "درجاتي في البلاك بورد؟",
+    "expected": { "kind": "tool", "tools": ["get_lms_grades"] },
+    "note": "Naming the LMS picks its gradebook."
+  },
+  {
+    "id": "tool-lms-grades-02",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "كم درجة الميد ترم حقي؟",
+    "expected": { "kind": "tool", "tools": ["get_lms_grades"] },
+    "note": "A single grade only the LMS gradebook holds."
+  },
+  {
+    "id": "tool-lms-grades-03",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "كم جبت في الكويز الأول؟",
+    "expected": { "kind": "tool", "tools": ["get_lms_grades"] },
+    "note": "A quiz score, which only the LMS gradebook holds."
+  },
+  {
+    "id": "tool-lms-grades-04",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What are my LMS grades?",
+    "expected": { "kind": "tool", "tools": ["get_lms_grades"] },
+    "note": "The English LMS gradebook question."
+  },
+  {
+    "id": "tool-schedule-01",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "وش جدولي اليوم؟",
+    "expected": { "kind": "tool", "tools": ["get_schedule"] },
+    "note": "The timetable."
+  },
+  {
+    "id": "tool-schedule-02",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "جدولي الدراسي لهذا الفصل؟",
+    "expected": { "kind": "tool", "tools": ["get_schedule"] },
+    "note": "The MSA form."
+  },
+  {
+    "id": "tool-schedule-03",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What's my schedule tomorrow?",
+    "expected": { "kind": "tool", "tools": ["get_schedule"] },
+    "note": "The English timetable question."
+  },
+  {
+    "id": "tool-final-exams-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "متى اختباراتي النهائية؟",
+    "expected": { "kind": "tool", "tools": ["get_final_exams"] },
+    "note": "The final exam schedule."
+  },
+  {
+    "id": "tool-final-exams-02",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "متى الفاينل؟",
+    "expected": { "kind": "tool", "tools": ["get_final_exams"] },
+    "note": "Hijazi names the final exams الفاينل."
+  },
+  {
+    "id": "tool-final-exams-03",
+    "lang": "en",
+    "dialect": "en",
+    "question": "When are my final exams?",
+    "expected": { "kind": "tool", "tools": ["get_final_exams"] },
+    "note": "The English final exam question."
+  },
+  {
+    "id": "tool-absences-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم نسبة غيابي؟",
+    "expected": { "kind": "tool", "tools": ["get_absences"] },
+    "note": "The absence percentage, one page."
+  },
+  {
+    "id": "tool-absences-02",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "كم غيابي في مادة 434؟",
+    "expected": { "kind": "tool", "tools": ["get_absences"] },
+    "note": "One course's absence count."
+  },
+  {
+    "id": "tool-absences-03",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What's my absence percentage?",
+    "expected": { "kind": "tool", "tools": ["get_absences"] },
+    "note": "The English absence question."
+  },
+  {
+    "id": "tool-plan-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم باقي لي ساعات على التخرج؟",
+    "expected": { "kind": "tool", "tools": ["get_plan_progress"] },
+    "note": "The remaining hours, one page."
+  },
+  {
+    "id": "tool-plan-02",
+    "lang": "ar",
+    "dialect": "gulf",
+    "question": "شنو المقررات المتبقية علي؟",
+    "expected": { "kind": "tool", "tools": ["get_plan_progress"] },
+    "note": "Gulf: the remaining courses."
+  },
+  {
+    "id": "tool-plan-03",
+    "lang": "en",
+    "dialect": "en",
+    "question": "How many hours do I have left?",
+    "expected": { "kind": "tool", "tools": ["get_plan_progress"] },
+    "note": "The English remaining hours question."
+  },
+  {
+    "id": "tool-plan-04",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What are my remaining credit hours?",
+    "expected": { "kind": "tool", "tools": ["get_plan_progress"] },
+    "note": "Remaining credit hours."
+  },
+  {
+    "id": "tool-courses-01",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "وش مقرراتي هذا الترم؟",
+    "expected": { "kind": "tool", "tools": ["get_courses"] },
+    "note": "The LMS course list."
+  },
+  {
+    "id": "tool-courses-02",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما هي مقرراتي في البلاك بورد؟",
+    "expected": { "kind": "tool", "tools": ["get_courses"] },
+    "note": "The course list named by the LMS."
+  },
+  {
+    "id": "tool-courses-03",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What are my courses?",
+    "expected": { "kind": "tool", "tools": ["get_courses"] },
+    "note": "The English course list question."
+  },
+  {
+    "id": "tool-assignments-01",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "وش واجباتي هالأسبوع؟",
+    "expected": { "kind": "tool", "tools": ["get_assignments"] },
+    "note": "The due dates page."
+  },
+  {
+    "id": "tool-assignments-02",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما المطلوب مني تسليمه؟",
+    "expected": { "kind": "tool", "tools": ["get_assignments"] },
+    "note": "What do I have to hand in."
+  },
+  {
+    "id": "tool-assignments-03",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "متى الواجب القادم؟",
+    "expected": { "kind": "tool", "tools": ["get_assignments"] },
+    "note": "The next due item."
+  },
+  {
+    "id": "tool-assignments-04",
+    "lang": "ar",
+    "dialect": "gulf",
+    "question": "عندي اختبار بكرة؟",
+    "expected": { "kind": "tool", "tools": ["get_assignments"] },
+    "note": "Whether anything is due tomorrow, read from the due dates page."
+  },
+  {
+    "id": "tool-assignments-05",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What's due this week?",
+    "expected": { "kind": "tool", "tools": ["get_assignments"] },
+    "note": "The English due dates question."
+  },
+  {
+    "id": "tool-assignments-06",
+    "lang": "en",
+    "dialect": "en",
+    "question": "Do I have an exam tomorrow?",
+    "expected": { "kind": "tool", "tools": ["get_assignments"] },
+    "note": "A quiz or exam tomorrow is on the same due dates page."
+  },
+  {
+    "id": "reg-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم نسبة الغياب اللي تمنعني من دخول الاختبار النهائي؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The rule, not the student's own percentage."
+  },
+  {
+    "id": "reg-02",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما شروط الحرمان؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The conditions, no student named."
+  },
+  {
+    "id": "reg-03",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم المعدل المطلوب للتخرج؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The requirement, not this student's plan."
+  },
+  {
+    "id": "reg-04",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "متى الاختبار النهائي؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The exam period, not the student's exam schedule."
+  },
+  {
+    "id": "reg-05",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم ساعة يحتاج التخرج في هندسة البرمجيات؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "A programme's hours, not the student's remaining ones."
+  },
+  {
+    "id": "reg-06",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما هو الإنذار الأكاديمي؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The definition, no student named."
+  },
+  {
+    "id": "reg-07",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كيف أسجل في المقررات؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "Registration, not the student's own course list."
+  },
+  {
+    "id": "reg-08",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما هي سياسة الواجبات؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "A policy, not the student's due items."
+  },
+  {
+    "id": "reg-09",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "سياسة تأخير تسليم الواجبات؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The plural تسليم الواجبات is a policy; only the singular تسليم الواجب is personal."
+  },
+  {
+    "id": "reg-10",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم الحد الأقصى للعبء الدراسي في الفصل؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The maximum load as a rule."
+  },
+  {
+    "id": "reg-11",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما شروط تأجيل الفصل الدراسي؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "Postponing a term, no student data."
+  },
+  {
+    "id": "reg-12",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل التخرج يحتاج مشروع تخرج؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "A requirement, not a verdict on this student."
+  },
+  {
+    "id": "reg-13",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما شروط أن أستطيع التخرج بمرتبة شرف؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "أستطيع التخرج inside a conditions question stays a rule."
+  },
+  {
+    "id": "reg-14",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم عدد ساعات التخرج المطلوبة؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The programme's required hours."
+  },
+  {
+    "id": "reg-15",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل يمكن تأجيل الفصل؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "هل يمكن with a rule, not the student's plan."
+  },
+  {
+    "id": "reg-16",
+    "lang": "en",
+    "dialect": "en",
+    "question": "How many absences are allowed?",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The allowed number, not the student's own."
+  },
+  {
+    "id": "reg-17",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What GPA is required for graduation?",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The requirement, no student named."
+  },
+  {
+    "id": "reg-18",
+    "lang": "en",
+    "dialect": "en",
+    "question": "When is the final exam period?",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The exam period, not the student's exams."
+  },
+  {
+    "id": "reg-19",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What is the maximum course load per semester?",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The maximum load as a rule."
+  },
+  {
+    "id": "reg-20",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What is academic warning?",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The definition, no student named."
+  },
+  {
+    "id": "reg-21",
+    "lang": "en",
+    "dialect": "en",
+    "question": "What is the policy for late assignment submissions?",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "A policy, not the student's due items."
+  },
+  {
+    "id": "trap-01",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "معدل الترم هذا كم ساعة؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "TRAP: معدل is the term's average load, not the student's GPA."
+  },
+  {
+    "id": "trap-02",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "هل أقدر أسجل 18 ساعة؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "TRAP: هل أقدر plus a load is a registration rule, not this student's graduation."
+  },
+  {
+    "id": "trap-03",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "متى اختبار الفصل النهائي؟",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "TRAP: the term's final exam, not the student's final exam schedule."
+  }
+]

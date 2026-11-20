@@ -226,6 +226,46 @@ def test_retrieval_failure_is_a_503(api, monkeypatch):
     assert response.status_code == 503
 
 
+def test_a_missing_index_is_a_503_not_a_traceback(api, monkeypatch, caplog):
+    """The retriever is built before the answer, so a missing index must not be a 500."""
+
+    def missing_index():
+        raise OSError("data/index/ref-01.index not found")
+
+    client, _fake = api(content=reply(True, "x"))
+    monkeypatch.setattr(main, "get_retriever", missing_index)
+
+    with caplog.at_level("INFO", logger="app.main"):
+        response = client.post("/chat", json={"message": QUESTION})
+
+    assert response.status_code == 503
+    assert "index" not in response.text
+    # The type is logged, the message is not: it can name a file and a value.
+    assert "OSError" in caplog.text
+    assert "ref-01.index" not in caplog.text
+
+
+def test_a_missing_api_key_is_a_503_not_a_traceback(api, monkeypatch, caplog):
+    """make_client reads the key when it is built, before the try, so it is caught too."""
+
+    def no_key(*_args, **_kwargs):
+        raise RuntimeError("OPENAI_API_KEY is not set; add it to .env")
+
+    client, _fake = api(content=reply(True, "x"))
+    monkeypatch.setattr(answer, "api_key", no_key)
+    monkeypatch.setattr(
+        main, "get_client", lambda: answer.make_client(main.get_config())
+    )
+
+    with caplog.at_level("INFO", logger="app.main"):
+        response = client.post("/chat", json={"message": QUESTION})
+
+    assert response.status_code == 503
+    assert "OPENAI_API_KEY" not in response.text
+    assert "RuntimeError" in caplog.text
+    assert "OPENAI_API_KEY" not in caplog.text
+
+
 def test_the_response_carries_the_contract_fields_in_order(api):
     client, _fake = api(content=reply(True, "الحد الأدنى 2,75 (المادة 62)."))
 

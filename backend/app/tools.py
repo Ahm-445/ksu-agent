@@ -40,23 +40,40 @@ _ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "0123
 # "هل أقدر أتخرج الفصل القادم؟" / "متى أتخرج؟". `normalise` rewrites "ى" as "ي",
 # so the question is matched as "متي اتخرج". The question word is required: "كم المعدل
 # المطلوب عشان أتخرج؟" asks for a requirement, so it stays an ordinary answer.
+# "بإمكاني التخرج" and "عشان أتخرج" name the student without a question word, while
+# "ما شروط أن أستطيع التخرج؟" stays a rule: أستطيع التخرج only counts after هل or متى.
 _ARABIC_GRADUATION = re.compile(
-    r"(?:متي|هل|اقدر|يمكن(?:ني)?)\s+(?:انا\s+)?(?:اقدر\s+)?اتخرج(?![\u0621-\u064a])"
+    r"(?:متي|هل|اقدر|نقدر|يمكن(?:ني)?|يمكننا)\s+(?:انا\s+|احنا\s+)?"
+    r"(?:اقدر\s+|نقدر\s+|استطيع\s+|نستطيع\s+)?(?:اتخرج|نتخرج)(?![\u0621-\u064a])"
+    r"|(?:هل|متي)\s+(?:انا\s+)?(?:استطيع|نستطيع|بامكاني|بامكاننا)\s+"
+    r"(?:ال)?تخرج(?![\u0621-\u064a])"
+    r"|(?:بامكاني|بامكاننا)\s+(?:ال)?تخرج(?![\u0621-\u064a])"
+    r"|(?:عشان|علشان)\s+(?:انا\s+)?(?:اتخرج|نتخرج|التخرج)(?![\u0621-\u064a])"
 )
 
-# "can I graduate next term?", "when will I graduate?".
+# "can I graduate next term?", "when will I graduate?", "is it possible for me to graduate?".
 _ENGLISH_GRADUATION = re.compile(
     r"\b(?:can|could|will|would|do)\s+i\s+graduate\b"
     r"|\bwhen\s+(?:will\s+|do\s+)?i\s+graduate\b"
     r"|\bam\s+i\s+graduating\b"
+    r"|\bis\s+it\s+possible\s+(?:for\s+me\s+)?to\s+graduate\b"
 )
 
-# "هل أنا قريب من الحرمان؟" / "كم غياب باقي لي قبل الحرمان في 434". The regulation
-# question "ما شروط الحرمان؟" names no student, so it stays an ordinary answer.
+# "المطلوب" and "شروط" name a requirement, and a question that names one asks about the
+# rule even when it says عشان أتخرج: "كم المعدل المطلوب عشان أتخرج؟" asks what the
+# regulation requires, while "كم باقي لي عشان أتخرج؟" asks about this student's own plan.
+# "المطلوب مني" is the exception — what the student still has to hand in.
+_REQUIREMENT = re.compile(r"المطلوب(?!\s+مني)|شروط")
+
+# "هل أنا قريب من الحرمان؟" / "كم غياب باقي لي قبل الحرمان في 434" / "هل تجاوزت نسبة
+# الغياب المسموح بها؟". The regulation question "ما شروط الحرمان؟" names no student, so it
+# stays an ordinary answer.
 _ARABIC_NEAR_DEPRIVATION = re.compile(
     r"(?:قريب(?:ة|ه)?|قربت)\s*(?:من|عن)\s*(?:ال)?حرمان"
+    r"|(?:علي\s+)?وشك\s+(?:ال)?حرمان"
     r"|باقي\s*(?:لي|لنا)[^.?!]{0,30}حرمان"
     r"|(?:كم|قد)\s*(?:غياب|غيابات)\s*(?:باقي|لي|لنا)"
+    r"|(?:تجاوزت|تعديت)[^.?!]{0,20}غياب"
 )
 
 # "am I close to being barred?", "how many absences do I have left before …?".
@@ -68,8 +85,10 @@ _ENGLISH_NEAR_DEPRIVATION = re.compile(
 
 # "كم أحتاج أجيب عشان يصير معدلي 4.5؟" asks what average a target needs. It is a kind
 # of its own: the fact it needs is the required average, not a verdict on a threshold.
+# "أبي أرفع معدلي إلى 4.5" names the target first and asks for the average after.
 _ARABIC_GPA_TARGET = re.compile(
     r"(?:عشان|علشان|حتي)[^.?!]{0,10}(?:يصير|يكون|اوصل|ارفع)[^.?!]{0,25}معدل"
+    r"|(?:ارفع|احسن|ازيد|لرفع|لتحسين|لزياد(?:ة|ه))[^.?!]{0,15}معدل"
 )
 
 # "هل أنا تحت الإنذار؟" asks about the student's standing against the warning threshold.
@@ -91,13 +110,15 @@ _ENGLISH_ACADEMIC_WARNING = re.compile(
 )
 
 # "هل عندي تعارض في الاختبارات النهائية؟": two exams at the same time is a
-# comparison of dates, so it needs the exam page and the schedule behind it.
+# comparison of dates, so it needs the exam page and the schedule behind it. Hijazi
+# names them الفاينل.
 _ARABIC_EXAM_CONFLICT = re.compile(
-    r"تعارض[^.?!]{0,30}اختبار|اختبار[^.?!]{0,30}تعارض"
+    r"تعارض[^.?!]{0,30}(?:اختبار|فاينل)|(?:اختبار|فاينل)[^.?!]{0,30}تعارض"
 )
 _ENGLISH_EXAM_CONFLICT = re.compile(
-    r"\b(?:exam|final)s?\b[^.?!]{0,30}\bconflict\b"
-    r"|\bconflict\b[^.?!]{0,30}\bexams?\b"
+    r"\b(?:exam|final)s?\b[^.?!]{0,30}\bconflicts?\b"
+    r"|\bconflicts?\b[^.?!]{0,30}\b(?:exam|final)s?\b"
+    r"|\b(?:exam|final)s?\b[^.?!]{0,20}\bclash(?:es|ing)?\b"
 )
 
 # "كيف أوزع وقتي هالأسبوع؟" / "plan my week": the due dates and the class
@@ -276,6 +297,18 @@ _REASONING_PATTERNS: tuple[tuple[str, re.Pattern[str], re.Pattern[str]], ...] = 
 )
 
 
+def _asks_about_a_requirement(text: str, position: int) -> bool:
+    """Whether a requirement word comes before `position`, so the question asks for it.
+
+    The wording after the graduation pattern names the student's own situation ("باقي لي
+    عشان أتخرج"), and a requirement word before it names the rule ("المعدل المطلوب
+    عشان أتخرج").
+    """
+    found = _REQUIREMENT.search(text)
+
+    return found is not None and found.start() < position
+
+
 @dataclass(frozen=True)
 class ToolRequest:
     """What the website should run: the tools, and whether the question is reasoning.
@@ -298,8 +331,12 @@ def detect_reasoning_kind(message: str) -> str | None:
     text = normalise(message)
 
     for kind, arabic, english in _REASONING_PATTERNS:
-        if arabic.search(text) or english.search(text):
-            return kind
+        found = arabic.search(text) or english.search(text)
+
+        if found is None or _asks_about_a_requirement(text, found.start()):
+            continue
+
+        return kind
 
     return None
 

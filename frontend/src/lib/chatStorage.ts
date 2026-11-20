@@ -143,12 +143,17 @@ export function readChat(userId: string): StoredChat | null {
 
 export function writeChat(userId: string, chat: StoredChat): void {
   try {
+    // Written through the same reader that reads it back: a message keeps its own fields
+    // and nothing else, so a caller that attaches a tool's payload cannot put a value in
+    // web storage (ADR 0001, rule 4).
+    const messages = chat.messages
+      .map(parseMessage)
+      .filter((message): message is ChatMessage => message !== null)
+      .slice(-MAX_STORED_MESSAGES);
+
     window.sessionStorage.setItem(
       storageKey(userId),
-      JSON.stringify({
-        session_id: chat.session_id,
-        messages: chat.messages.slice(-MAX_STORED_MESSAGES),
-      }),
+      JSON.stringify({ session_id: chat.session_id, messages }),
     );
   } catch {
     // Storage unavailable or full: the conversation stays in memory.

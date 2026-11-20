@@ -7,7 +7,8 @@ response: { answer, citations: [ { title, article, url } ] }
 
 Implemented today: 422 with a short code as the body — `{"detail": "message_empty"}` for a
 missing, empty or whitespace-only message, `{"detail": "message_too_long"}` for one over
-1000 characters. CORS allows credentials from `http://localhost:3000` exactly, never `*`.
+1000 characters, and the codes in the table below for a body that does not fit the model.
+CORS allows credentials from `http://localhost:3000` exactly, never `*`.
 
 ## Planned, not implemented
 
@@ -77,6 +78,10 @@ The response gains a `type` field; nothing else about Phase 1 changes.
 
 The request is unchanged: `{ message, session_id }`, with the same 401 and 422 codes.
 
+A 503 answers a failure of the answer service itself: a missing index, a missing API key,
+or a model call that fails. Only the exception's type is logged, never its message, so a
+question or a value in it cannot reach a log line.
+
 ### POST /chat/with-data — reasoning questions only
 
 Used only when a question needs reasoning over the student's own values, for example
@@ -132,6 +137,12 @@ Rules:
 | `data_too_large` | The whole request body is over 20 KB. |
 | `unknown_tool` | A key of `data` is not a catalogue tool, or is a tool the reply did not name. |
 | `data_invalid` | A value does not match its tool's catalogue shape: an extra key, a missing key or a wrong type. |
+| `bad_request` | The body is not a JSON object, or a field other than `message` and `data` does not fit. |
+
+No 422 body repeats the request. FastAPI's own validation body carries the offending
+input, which on this endpoint is a value the student approved for one answer, so `/chat`
+and `/chat/with-data` always answer with one of these codes and nothing else
+(`backend/tests/test_privacy_audit.py` drives every path with a sentinel in every field).
 
 ### Tool catalogue
 
