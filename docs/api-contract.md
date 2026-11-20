@@ -35,15 +35,90 @@ payload of the register 422, the cookie name and lifetime, and the exact shape o
 register 422 uses `{error, fields}` — worth agreeing on one shape before the auth work
 starts).
 
-## Phase 2 — agreed, not implemented yet
+## Phase 2 — partly implemented
 
 Everything in this section is agreed in
 [ADR 0001](adr/0001-phase2-data-access.md) and planned in
-[the Phase 2 page map](phase2-page-map.md). None of it exists in
-`backend/app/main.py`, in the front end or in an extension yet. The Phase 1 text above
-still describes what the API does today.
+[the Phase 2 page map](phase2-page-map.md). The `/chat` response shapes and the tool
+catalogue below are implemented in `backend/app/main.py` and `backend/app/tools.py`;
+`/chat/with-data` and the consent step are specified here and described as built in
+[the reasoning step](phase2-reasoning.md).
 
-### POST /chat — two response shapes, chosen by `type`
+### POST /chat — three response shapes, chosen by `type`
+
+The response gains a `type` field; nothing else about Phase 1 changes.
+
+```json
+{ "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ] }
+```
+
+```json
+{ "type": "tool", "tool": "get_gpa", "args": {} }
+```
+
+```json
+{ "type": "reason", "tools": [ "get_plan_progress", "get_gpa" ] }
+```
+
+- `answer` — the Phase 1 shape, unchanged apart from the added `type`.
+- `tool` — asks the website to run `tool` through the extension (see the catalogue
+  below) and answer from the result in the browser. The backend sends no personal data
+  in this response and receives none in the request; `args` is empty for every tool in
+  the catalogue.
+- `reason` — the question needs reasoning over the student's own values, for example
+  "can I graduate next term?". `tools` names one to three tools from the catalogue
+  and carries nothing else: no data, no args. The website runs those tools, shows the
+  student exactly what would be sent, and posts `/chat/with-data` only if they approve
+  this one question.
+- **Backward compatibility:** a response without `type` must be treated as
+  `"answer"`. A client that does not know `reason` shows its generic error for that
+  message; it never treats `tools` as data and never posts `/chat/with-data`.
+
+The request is unchanged: `{ message, session_id }`, with the same 401 and 422 codes.
+
+### POST /chat/with-data — reasoning questions only
+
+Used only when a question needs reasoning over the student's own values, for example
+"can I graduate next term?". Factual questions (GPA, grades, schedule, deadlines) are
+answered in the browser from the tool result and never reach this endpoint.
+
+```json
+request:  {
+  "message": "...",
+  "session_id": "...",
+  "data": {
+    "get_gpa": { "cumulative_gpa": "4.21", "scale": "5", "earned_hours": 96, "registered_hours": 99, "as_of_term": "الفصل الأول 1448/1449" },
+    "get_plan_progress": { "completed_hours": 96, "remaining_hours": 3, "remaining_courses": [] }
+  }
+}
+response: { "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ] }
+```
+
+There is no `tool` field: the tool names are the keys of `data`.
+
+- The keys of `data` must equal the tools the `/chat` reply named in `tools`, one
+  entry each. A missing entry is `data_missing`; a key the reply did not name is
+  `unknown_tool`.
+- Each value carries exactly the fields the catalogue below lists for that tool, with
+  the listed types — nothing more.
+
+Rules:
+
+- Sent only after the student approves **this one question** in the consent step.
+  There is no standing approval and no batching.
+- The backend uses `data` in memory for this one answer only: never stored, never
+  logged (see Privacy guarantees below).
+- 401 without login.
+- 422 with a short code, never a sentence:
+
+| Code | Meaning |
+| :--- | :--- |
+| `message_empty` | The message is absent, empty or whitespace only. |
+| `message_too_long` | The message is over 1000 characters. |
+| `data_missing` | `data` is absent, empty, or lacks a tool the reply named. |
+| `data_too_large` | The whole request body is over 20 KB. |
+| `unknown_tool` | A key of `data` is not a catalogue tool, or is a tool the reply did not name. |
+| `data_invalid` | A value does not match its tool's catalogue shape: an extra key, a missing key or a wrong type. |
 
 The response gains a `type` field; nothing else about Phase 1 changes.
 
