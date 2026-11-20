@@ -92,14 +92,29 @@ def _message_validation_code(exc: RequestValidationError) -> str | None:
     return None
 
 
+def _validation_code(exc: RequestValidationError) -> str:
+    """The short code for a rejected body, whatever field it was.
+
+    FastAPI's own 422 body repeats the offending input, and on /chat/with-data that input is
+    a value the student approved for one answer (ADR 0001, rule 2), so both answer paths
+    always answer with a code: `data_invalid` for a `data` the contract does not allow,
+    `bad_request` for anything else, such as a body that is not JSON.
+    """
+    code = _message_validation_code(exc)
+    if code is not None:
+        return code
+    if any("data" in error.get("loc", ()) for error in exc.errors()):
+        return "data_invalid"
+    return "bad_request"
+
+
 @app.exception_handler(RequestValidationError)
 async def _chat_validation_error(request, exc: RequestValidationError):
     """Answer a chat validation failure with a code; leave everything else alone."""
     if request.url.path in ANSWER_PATHS:
-        code = _message_validation_code(exc)
-        if code is not None:
-            LOGGER.info("rejected a request to %s: %s", request.url.path, code)
-            return JSONResponse(status_code=422, content={"detail": code})
+        code = _validation_code(exc)
+        LOGGER.info("rejected a request to %s: %s", request.url.path, code)
+        return JSONResponse(status_code=422, content={"detail": code})
     return await request_validation_exception_handler(request, exc)
 
 
@@ -307,23 +322,22 @@ def chat_with_data(request: WithDataRequest) -> ChatResponse:
         LOGGER.info("rejected a with-data request: %s", exc.code)
         raise HTTPException(status_code=422, detail=exc.code) from exc
 
-    # The numbers are computed here, in code, and never by the model: the answer explains
-    # them and states no other number (app/facts.py). The extra queries are the kind's
-    # fixed ones, so no value of the student's is ever part of a query.
-    reasoning = get_reasoning()
-    computed = facts.build_facts(
-        kind, data, reasoning.thresholds, request.message
-    )
-    extra_queries = reasoning.retrieval.get(kind, ()) if kind else ()
-    needs_regulation = facts.needs_regulation(kind)
-
-    # A verdict kind is answered from the template and the computed numbers alone: there is nothing
-    # for the model to phrase and nothing it could get wrong, so it is never called and the client
-    # is not even built. Retrieval still runs, for the citations.
-    # Built inside the try: a missing index, a missing key and anything unexpected all answer
-    # the same 503. Only the exception's type is logged: an unexpected error's message can
-    # carry a value from the prompt, and uvicorn would log a chained traceback with it.
+    # Everything that touches the values runs inside the try, the fact computation included: an
+    # unexpected error there is the same 503 as one from the answer, and only the exception's
+    # type is logged, because an error's message can carry a value from the prompt and uvicorn
+    # logs a chained traceback with it.
     try:
+        # The numbers are computed here, in code, and never by the model: the answer explains
+        # them and states no other number (app/facts.py). The extra queries are the kind's
+        # fixed ones, so no value of the student's is ever part of a query.
+        reasoning = get_reasoning()
+        computed = facts.build_facts(kind, data, reasoning.thresholds, request.message)
+        extra_queries = reasoning.retrieval.get(kind, ()) if kind else ()
+        needs_regulation = facts.needs_regulation(kind)
+
+        # A verdict kind is answered from the template and the computed numbers alone: there is
+        # nothing for the model to phrase and nothing it could get wrong, so it is never called
+        # and the client is not even built. Retrieval still runs, for the citations.
         if answer.is_verdict_kind(kind):
             result = answer.answer_from_facts(
                 kind,
