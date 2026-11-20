@@ -1,4 +1,4 @@
-import type { Category, Source } from "@/lib/extension";
+import type { Category, Source, ToolName } from "@/lib/extension";
 
 export type Lang = "ar" | "en";
 
@@ -118,6 +118,7 @@ export type Dictionary = {
     articleLabel: string;
     opensInNewTab: string;
     noSource: string;
+    notFromRegulation: string;
     searching: string;
     disclaimer: string;
     newMessages: string;
@@ -145,6 +146,18 @@ export type Dictionary = {
       allowed: string;
       separator: string;
       noneAllowed: string;
+    };
+    consent: {
+      title: string;
+      intro: string;
+      tools: Record<ToolName, string>;
+      fields: string;
+      items: string;
+      showJson: string;
+      hideJson: string;
+      approve: string;
+      cancel: string;
+      notSent: string;
     };
   };
   footer: {
@@ -295,6 +308,8 @@ const ar: Dictionary = {
     opensInNewTab: "يفتح في تبويب جديد",
     noSource:
       "لم يُعثر على مصدر رسمي لهذه الإجابة. للتأكد، راجع عمادة القبول والتسجيل.",
+    notFromRegulation:
+      "هذه الإجابة مبنية على بياناتك أنت، ولا يجيب عليها حكم في اللائحة.",
     searching: "جارٍ البحث في المصادر…",
     disclaimer: "قد يخطئ المساعد. تحقق دائمًا من المصدر.",
     newMessages: "رسائل جديدة",
@@ -337,6 +352,29 @@ const ar: Dictionary = {
       allowed: "يمكن للإضافة قراءة:",
       separator: "، ",
       noneAllowed: "لم تسمح بقراءة أي بيانات بعد",
+    },
+    consent: {
+      title: "هل أرسل هذه البيانات لهذا السؤال؟",
+      intro:
+        "هذا السؤال يحتاج مقارنة قيمك، وهي تُقرأ في متصفحك. إن وافقت، تُرسل مرة واحدة لخادم KSU Agent لهذا السؤال فقط، ولا تُحفظ ولا تُسجَّل.",
+      tools: {
+        get_gpa: "معدلك التراكمي والساعات المكتسبة من Edugate",
+        get_grades: "درجات المواد لهذا الفصل من Edugate",
+        get_schedule: "جدولك الدراسي من Edugate",
+        get_final_exams: "مواعيد اختباراتك النهائية من Edugate",
+        get_absences: "نسب الغياب لكل مقرر من Edugate",
+        get_plan_progress: "الساعات المكتملة والمقررات المتبقية من Edugate",
+        get_courses: "قائمة مقرراتك من البلاك بورد",
+        get_assignments: "واجباتك القادمة ومواعيد تسليمها من البلاك بورد",
+        get_lms_grades: "درجاتك في البلاك بورد",
+      },
+      fields: "الحقول: {fields}",
+      items: "عدد العناصر: {count}",
+      showJson: "اعرض البيانات التي ستُرسل",
+      hideJson: "أخفِ البيانات",
+      approve: "أوافق، أرسل لهذا السؤال",
+      cancel: "لا ترسل",
+      notSent: "لم يُرسل شيء إلى الخادم.",
     },
   },
   footer: {
@@ -488,6 +526,8 @@ const en: Dictionary = {
     opensInNewTab: "opens in a new tab",
     noSource:
       "No official source was found for this answer. Please confirm with the Deanship of Admission and Registration.",
+    notFromRegulation:
+      "This answer rests on your own data; no rule in the regulation answers it.",
     searching: "Searching the official sources…",
     disclaimer: "The assistant can make mistakes. Always check the source.",
     newMessages: "New messages",
@@ -530,6 +570,29 @@ const en: Dictionary = {
       allowed: "The extension can read:",
       separator: ", ",
       noneAllowed: "You haven't allowed any data yet",
+    },
+    consent: {
+      title: "Send this data for this question?",
+      intro:
+        "This question needs your values compared, and they are read in your browser. If you approve, they are sent once to the KSU Agent server for this question only, and are never stored or logged.",
+      tools: {
+        get_gpa: "Your cumulative GPA and earned hours from Edugate",
+        get_grades: "Your course grades for this term from Edugate",
+        get_schedule: "Your class schedule from Edugate",
+        get_final_exams: "Your final exam dates from Edugate",
+        get_absences: "Your absence percentages per course from Edugate",
+        get_plan_progress: "Your completed hours and remaining courses from Edugate",
+        get_courses: "Your course list from the LMS",
+        get_assignments: "Your upcoming assignments and their due dates from the LMS",
+        get_lms_grades: "Your grades on the LMS",
+      },
+      fields: "Fields: {fields}",
+      items: "Items: {count}",
+      showJson: "Show the data that will be sent",
+      hideJson: "Hide the data",
+      approve: "Approve, send for this question",
+      cancel: "Don't send",
+      notSent: "Nothing was sent to the server.",
     },
   },
   footer: {

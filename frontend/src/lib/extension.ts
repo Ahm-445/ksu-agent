@@ -15,7 +15,21 @@ export function isCategory(value: unknown): value is Category {
   return typeof value === "string" && (CATEGORIES as readonly string[]).includes(value);
 }
 
-/** The consent category each tool needs, from the API contract's tool catalogue. */
+/** Every tool in the API contract's catalogue, in the order it is documented. */
+export const TOOL_NAMES = [
+  "get_gpa",
+  "get_grades",
+  "get_schedule",
+  "get_final_exams",
+  "get_absences",
+  "get_plan_progress",
+  "get_courses",
+  "get_assignments",
+  "get_lms_grades",
+] as const;
+
+export type ToolName = (typeof TOOL_NAMES)[number];
+
 export const TOOL_CATEGORIES: Record<string, Category> = {
   get_gpa: "grades",
   get_grades: "grades",

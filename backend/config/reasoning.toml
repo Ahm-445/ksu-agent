@@ -1,0 +1,38 @@
+# Thresholds the reasoning facts are computed against, and the fixed queries run for each
+# reasoning kind. Every threshold carries the article it comes from in the ingested
+# regulation (data/processed/chunks/ref-01.jsonl); a value that is not in the regulation is
+# left out, its fact is null with reason "not_in_regulation", and the answer says the value
+# could not be confirmed. No number is ever guessed here.
+
+[thresholds.absence_limit_percent]
+# المادة 25: "يحرم من دخول الاختبار النهائي إذا قلت نسبة حضوره عن 75% من مجموع ساعات
+# الاتصال لجميع أنشطة المقرر" — so an absence above 25% is what bars the student.
+value = 25
+article = 25
+
+[thresholds.max_term_load]
+# المادة 24: "يكون الحد الأدنى للعبء الدراسي للطالب في الفصل الدراسي اثنتا عشرة وحدة
+# دراسية والحد الأعلى عشرون وحدة دراسية".
+value = 20
+article = 24
+
+[thresholds.max_term_load_exception]
+# المادة 24: "ولعمادة شؤون القبول والتسجيل زيادة الحد الأعلى لعبء الطالب في الفصل الدراسي
+# بما لا يتجاوز أربعاً وعشرين وحدة دراسية" — so a load of 21 to 24 units is possible
+# only with the Deanship's approval, and anything above 24 is not possible at all.
+value = 24
+article = 24
+
+# warning_gpa is deliberately absent. المادة 1 defines the academic warning as a cumulative
+# GPA below "الحد الأدنى الذي نصت عليه هذه اللائحة", and no article in the ingested text
+# states that minimum, so the fact stays null instead of borrowing a number.
+
+[retrieval]
+# The question itself is always searched; these queries are added per kind, never built from
+# the student's data, and their results are merged with the question's by article.
+graduation = ["العبء الدراسي الحد الأعلى للساعات في الفصل", "متطلبات التخرج"]
+absences = ["نسبة الحضور الحرمان"]
+academic_warning = ["الإنذار الأكاديمي المعدل"]
+gpa_target = ["حساب المعدل التراكمي"]
+exam_conflicts = ["الاختبارات النهائية الجدول الدراسي"]
+plan_week = ["الواجبات القادمة مواعيد التسليم"]

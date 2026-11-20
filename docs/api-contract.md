@@ -35,15 +35,17 @@ payload of the register 422, the cookie name and lifetime, and the exact shape o
 register 422 uses `{error, fields}` — worth agreeing on one shape before the auth work
 starts).
 
-## Phase 2 — agreed, not implemented yet
+## Phase 2 — implemented
 
 Everything in this section is agreed in
 [ADR 0001](adr/0001-phase2-data-access.md) and planned in
-[the Phase 2 page map](phase2-page-map.md). None of it exists in
-`backend/app/main.py`, in the front end or in an extension yet. The Phase 1 text above
-still describes what the API does today.
+[the Phase 2 page map](phase2-page-map.md). All of it is built: the three `/chat`
+response shapes and the catalogue in `backend/app/main.py` and `backend/app/tools.py`,
+`/chat/with-data` in `backend/app/main.py` and `backend/app/with_data.py`, and the
+consent card in the front end. [The reasoning step](phase2-reasoning.md) describes the
+flow end to end, the questions the router recognises and the card's wording.
 
-### POST /chat — two response shapes, chosen by `type`
+### POST /chat — three response shapes, chosen by `type`
 
 The response gains a `type` field; nothing else about Phase 1 changes.
 
@@ -55,12 +57,23 @@ The response gains a `type` field; nothing else about Phase 1 changes.
 { "type": "tool", "tool": "get_gpa", "args": {} }
 ```
 
+```json
+{ "type": "reason", "tools": [ "get_plan_progress", "get_gpa" ] }
+```
+
 - `answer` — the Phase 1 shape, unchanged apart from the added `type`.
 - `tool` — asks the website to run `tool` through the extension (see the catalogue
-  below). The backend sends no personal data in this response and receives none in the
-  request; `args` is empty for every tool in the catalogue.
+  below) and answer from the result in the browser. The backend sends no personal data
+  in this response and receives none in the request; `args` is empty for every tool in
+  the catalogue.
+- `reason` — the question needs reasoning over the student's own values, for example
+  "can I graduate next term?". `tools` names one to three tools from the catalogue
+  and carries nothing else: no data, no args. The website runs those tools, shows the
+  student exactly what would be sent, and posts `/chat/with-data` only if they approve
+  this one question.
 - **Backward compatibility:** a response without `type` must be treated as
-  `"answer"`.
+  `"answer"`. A client that does not know `reason` shows its generic error for that
+  message; it never treats `tools` as data and never posts `/chat/with-data`.
 
 The request is unchanged: `{ message, session_id }`, with the same 401 and 422 codes.
 
@@ -71,22 +84,54 @@ Used only when a question needs reasoning over the student's own values, for exa
 answered in the browser from the tool result and never reach this endpoint.
 
 ```json
-request:  { "message": "...", "session_id": "...", "tool": "get_gpa", "data": { } }
-response: { "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ] }
+request:  {
+  "message": "...",
+  "session_id": "...",
+  "data": {
+    "get_gpa": { "cumulative_gpa": "4.21", "scale": "5", "earned_hours": 96, "registered_hours": 99, "as_of_term": "الفصل الأول 1448/1449" },
+    "get_plan_progress": { "completed_hours": 96, "remaining_hours": 3, "remaining_courses": [] }
+  }
+}
+response: { "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ], "basis": "regulation" }
 ```
 
-`data` carries the result fields of `tool` exactly as the catalogue below lists them —
-nothing more.
+There is no `tool` field: the tool names are the keys of `data`.
+
+`basis` says what the answer rests on: `"regulation"` when the regulation answers
+the question, `"student_data"` when the student's own numbers are all there is (an
+exam clash, for example) and the answer then ends with a sentence saying so. A
+response without `basis` is a regulation answer.
+
+- The keys of `data` must equal the tools the `/chat` reply named in `tools`, one
+  entry each. A missing entry is `data_missing`; a key the reply did not name is
+  `unknown_tool`.
+- Each value carries exactly the fields the catalogue below lists for that tool, with
+  the listed types — nothing more.
 
 Rules:
 
 - Sent only after the student approves **this one question** in the consent step.
   There is no standing approval and no batching.
+- A verdict question — absences, academic warning, graduation, a GPA target, an exam
+  clash — is answered from the computed numbers and a fixed template, with **no model
+  call**: the numbers and the sentences are the same every time, so no reply can add a
+  number of its own. Retrieval still runs, for the citations: an article the template
+  states is cited from the retrieved chunk, and, when retrieval missed it, from the
+  regulation's own title and URL in `backend/config/sources.toml`. A question no rule
+  answers (`plan_week`) still goes to the model, which phrases the computed plan.
 - The backend uses `data` in memory for this one answer only: never stored, never
   logged (see Privacy guarantees below).
 - 401 without login.
-- 422 with a short code: `message_empty`, `message_too_long`, `data_missing`,
-  `data_too_large` (over 20 KB), `unknown_tool`.
+- 422 with a short code, never a sentence:
+
+| Code | Meaning |
+| :--- | :--- |
+| `message_empty` | The message is absent, empty or whitespace only. |
+| `message_too_long` | The message is over 1000 characters. |
+| `data_missing` | `data` is absent, empty, or lacks a tool the reply named. |
+| `data_too_large` | The whole request body is over 20 KB. |
+| `unknown_tool` | A key of `data` is not a catalogue tool, or is a tool the reply did not name. |
+| `data_invalid` | A value does not match its tool's catalogue shape: an extra key, a missing key or a wrong type. |
 
 ### Tool catalogue
 
@@ -113,9 +158,9 @@ extension stored.
 Reading rules:
 
 - `days` uses `1` = Sunday … `7` = Saturday. Edugate uses 1–5 (Sunday–Thursday); 6 and 7
-  are allowed so other sources fit the same format. **Still to be confirmed on a real
-  Edugate page** (the page map says the number-to-day mapping must be verified before
-  release).
+  are allowed so other sources fit the same format. **Confirmed on a real Edugate page:
+  1 = Sunday … 5 = Thursday** — a date is matched to a schedule day by
+  `facts.contract_day(date)` (`isoweekday() % 7 + 1`), never by `isoweekday()` alone.
 - Numbers that Edugate shows as text stay strings (`cumulative_gpa`, `scale`); counts,
   hours and percentages are numbers. The absences page prints `نسبة الغياب` without the
   % sign (`11.86`); the number is returned as shown, between 0 and 100.

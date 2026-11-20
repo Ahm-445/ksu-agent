@@ -13,6 +13,8 @@ type MessageListProps = {
   onRetry: (messageId: string) => void;
   onStop: () => void;
   emptyState: ReactNode;
+  /** The consent card for the newest question, rendered after the messages. */
+  consent?: ReactNode;
 };
 
 const NEAR_BOTTOM_PX = 120;
@@ -23,6 +25,7 @@ export function MessageList({
   onRetry,
   onStop,
   emptyState,
+  consent,
 }: MessageListProps) {
   const { t } = useLanguage();
   const listRef = useRef<HTMLDivElement>(null);
@@ -64,7 +67,7 @@ export function MessageList({
     }
 
     setShowJump(true);
-  }, [messages, pending, scrollToBottom]);
+  }, [messages, pending, consent, scrollToBottom]);
 
   const jump = () => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -99,6 +102,8 @@ export function MessageList({
                 onRetry={onRetry}
               />
             ))}
+
+            {consent}
 
             {pending ? <PendingBubble onStop={onStop} /> : null}
           </div>

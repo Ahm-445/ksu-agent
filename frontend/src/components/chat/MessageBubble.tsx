@@ -101,7 +101,12 @@ export function MessageBubble({ message, onRetry }: MessageBubbleProps) {
               <span>{copied ? t.chat.copied : t.chat.copy}</span>
             </button>
 
-            {message.personal ? null : <Citations citations={message.citations ?? []} />}
+            {message.personal ? null : (
+              <Citations
+                citations={message.citations ?? []}
+                basis={message.basis}
+              />
+            )}
           </div>
         )}
       </div>

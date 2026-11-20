@@ -6,17 +6,23 @@ import { useAuth } from "@/components/AuthProvider";
 import { useLanguage } from "@/components/LanguageProvider";
 import { ChatTopBar } from "@/components/chat/ChatTopBar";
 import { Composer, MAX_MESSAGE_LENGTH } from "@/components/chat/Composer";
+import { ConsentCard } from "@/components/chat/ConsentCard";
 import { EmptyState } from "@/components/chat/EmptyState";
 import { MessageList } from "@/components/chat/MessageList";
-import { sendMessage } from "@/lib/api/chat";
+import { sendMessage, sendWithData } from "@/lib/api/chat";
 import {
   MAX_STORED_MESSAGES,
   readChat,
   writeChat,
   type ChatMessage,
 } from "@/lib/chatStorage";
+import { readForConsent, type ConsentRequest } from "@/lib/consent";
 import { runTool } from "@/lib/extension";
-import { personalAnswer, toolErrorText } from "@/lib/personalAnswers";
+import {
+  consentAnswers,
+  personalAnswer,
+  toolErrorText,
+} from "@/lib/personalAnswers";
 
 function createId(): string {
   try {
@@ -40,6 +46,12 @@ export function ChatScreen() {
   const [hydrated, setHydrated] = useState(false);
   const [pending, setPending] = useState(false);
   const [text, setText] = useState("");
+  // The consent step's values live here and nowhere else: not in the message list, not in
+  // storage, not in the URL. Approving or cancelling drops them (ADR 0001, rule 5).
+  const [consent, setConsent] = useState<{
+    request: ConsentRequest;
+    messageId: string;
+  } | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -155,15 +167,43 @@ export function ChatScreen() {
         return;
       }
 
+      // A reasoning question needs values compared, so every tool runs first, then the
+      // student sees one card and decides for this question only.
+      if (result.ok && result.kind === "reason") {
+        const outcome = await readForConsent(question, result.tools, t, runTool);
+
+        if (!mountedRef.current || requestRef.current !== requestId) {
+          return;
+        }
+
+        abortRef.current = null;
+        setPending(false);
+
+        if (!outcome.ok) {
+          appendMessage({
+            id: createId(),
+            role: "assistant",
+            text: toolErrorText(t, outcome.error, outcome.tool),
+            personal: true,
+            status: "ok",
+          });
+          return;
+        }
+
+        setConsent({ request: outcome.request, messageId: userMessageId });
+        return;
+      }
+
       abortRef.current = null;
       setPending(false);
 
-      if (result.ok) {
+      if (result.ok && result.kind === "answer") {
         appendMessage({
           id: createId(),
           role: "assistant",
           text: result.answer,
           citations: result.citations,
+          basis: result.basis,
           status: "ok",
         });
         return;
@@ -189,10 +229,10 @@ export function ChatScreen() {
         role: "assistant",
         text: "",
         status: "error",
-        errorKind: result.error,
+        errorKind: result.ok ? "server_unavailable" : result.error,
       });
     },
-    [answerWithTool, appendMessage, logout, router, sessionId],
+    [answerWithTool, appendMessage, logout, router, sessionId, t],
   );
 
   const send = useCallback(
@@ -205,6 +245,8 @@ export function ChatScreen() {
 
       const userMessageId = createId();
 
+      // A new question replaces the previous card, and drops its values with it.
+      setConsent(null);
       appendMessage({
         id: userMessageId,
         role: "user",
@@ -255,11 +297,98 @@ export function ChatScreen() {
     }
 
     requestRef.current += 1;
+    setConsent(null);
     setSessionId(createId());
     setMessages([]);
     setText("");
     textareaRef.current?.focus();
   }, []);
+
+  // Approving sends the values the card showed, once, for this question. The card is gone
+  // before the request starts, so it cannot be approved a second time.
+  const approveConsent = useCallback(async () => {
+    if (!consent) {
+      return;
+    }
+
+    const { request, messageId } = consent;
+    setConsent(null);
+    setPending(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const result = await sendWithData({
+      message: request.question,
+      sessionId,
+      data: request.data,
+      signal: controller.signal,
+    });
+
+    if (!mountedRef.current) {
+      return;
+    }
+
+    abortRef.current = null;
+    setPending(false);
+
+    if (result.ok && result.kind === "answer") {
+      appendMessage({
+        id: createId(),
+        role: "assistant",
+        text: result.answer,
+        citations: result.citations,
+        basis: result.basis,
+        status: "ok",
+      });
+      return;
+    }
+
+    if (!result.ok && result.error === "aborted") {
+      setMessages((current) =>
+        current.filter((message) => message.id !== messageId),
+      );
+      setText(request.question);
+      textareaRef.current?.focus();
+      return;
+    }
+
+    if (!result.ok && result.error === "unauthenticated") {
+      await logout();
+      router.replace("/login?next=/chat");
+      return;
+    }
+
+    appendMessage({
+      id: createId(),
+      role: "assistant",
+      text: "",
+      status: "error",
+      errorKind:
+        !result.ok && result.error === "invalid" ? "invalid" : "server_unavailable",
+    });
+  }, [appendMessage, consent, logout, router, sessionId]);
+
+  // Cancelling sends nothing: the values already read answer from the templates instead.
+  const cancelConsent = useCallback(() => {
+    if (!consent) {
+      return;
+    }
+
+    const { request } = consent;
+    setConsent(null);
+    appendMessage({
+      id: createId(),
+      role: "assistant",
+      text: consentAnswers(
+        request.tools.map(({ tool, payload }) => ({ tool, data: payload })),
+        lang,
+      ),
+      note: t.chat.consent.notSent,
+      personal: true,
+      status: "ok",
+    });
+  }, [appendMessage, consent, lang, t]);
 
   if (status !== "authenticated" || !user || !hydrated) {
     return (
@@ -286,6 +415,16 @@ export function ChatScreen() {
         onStop={stop}
         emptyState={
           <EmptyState firstName={firstName} onSelect={send} disabled={pending} />
+        }
+        consent={
+          consent ? (
+            <ConsentCard
+              request={consent.request}
+              busy={pending}
+              onApprove={() => void approveConsent()}
+              onCancel={cancelConsent}
+            />
+          ) : null
         }
       />
 
