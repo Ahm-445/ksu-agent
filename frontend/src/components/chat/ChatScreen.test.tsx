@@ -1,0 +1,209 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { Mock } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ChatScreen } from "@/components/chat/ChatScreen";
+import { dictionary } from "@/lib/i18n";
+import { sendMessage, sendWithData } from "@/lib/api/chat";
+import { runTool } from "@/lib/extension";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+}));
+
+vi.mock("@/components/AuthProvider", () => ({
+  useAuth: () => ({
+    user: { id: "u-1", full_name: "نورة العتيبي", email: "444100001@student.ksu.edu.sa" },
+    status: "authenticated",
+    logout: vi.fn(),
+  }),
+}));
+
+vi.mock("@/components/LanguageProvider", () => ({
+  useLanguage: () => ({
+    lang: "ar",
+    setLang: vi.fn(),
+    t: dictionary.ar,
+  }),
+}));
+
+vi.mock("@/lib/api/chat", () => ({
+  sendMessage: vi.fn(),
+  sendWithData: vi.fn(),
+}));
+
+vi.mock("@/lib/extension", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/extension")>("@/lib/extension");
+
+  return { ...actual, runTool: vi.fn() };
+});
+
+const t = dictionary.ar;
+const QUESTION = "هل أقدر أتخرج الفصل القادم؟";
+
+const GPA = {
+  cumulative_gpa: "4.21",
+  scale: "5",
+  earned_hours: 96,
+  registered_hours: 987654,
+  as_of_term: "الفصل الأول 1448/1449",
+};
+
+const PLAN = {
+  completed_hours: 96,
+  remaining_hours: 6,
+  remaining_courses: [],
+};
+
+const DATA = { get_gpa: GPA, get_plan_progress: PLAN };
+
+async function ask() {
+  fireEvent.change(screen.getByRole("textbox"), {
+    target: { value: QUESTION },
+  });
+  fireEvent.click(screen.getByRole("button", { name: t.chat.send }));
+}
+
+function storedText(): string {
+  const stored: Record<string, string> = {};
+
+  for (let index = 0; index < window.sessionStorage.length; index += 1) {
+    const key = window.sessionStorage.key(index);
+    stored[String(key)] = window.sessionStorage.getItem(String(key)) ?? "";
+  }
+
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    stored[`local:${String(key)}`] =
+      window.localStorage.getItem(String(key)) ?? "";
+  }
+
+  return JSON.stringify(stored);
+}
+
+beforeEach(() => {
+  (sendMessage as Mock).mockResolvedValue({
+    ok: true,
+    kind: "reason",
+    tools: ["get_gpa", "get_plan_progress"],
+  });
+
+  (runTool as Mock).mockImplementation(async (tool: string) => ({
+    ok: true,
+    data: DATA[tool as keyof typeof DATA],
+    readAt: "2026-11-20T10:00:00+03:00",
+  }));
+});
+
+describe("a reasoning question", () => {
+  it("shows one card for the question, after reading every tool", async () => {
+    render(<ChatScreen />);
+
+    await ask();
+
+    const card = await screen.findByRole("group", { name: t.chat.consent.title });
+
+    expect((runTool as Mock).mock.calls.map(([tool]) => tool)).toEqual([
+      "get_gpa",
+      "get_plan_progress",
+    ]);
+    expect(within(card).getAllByRole("listitem")).toHaveLength(2);
+    expect(sendWithData).not.toHaveBeenCalled();
+  });
+
+  it("posts exactly the values the card shows, once, when the student approves", async () => {
+    (sendWithData as Mock).mockResolvedValue({
+      ok: true,
+      kind: "answer",
+      answer: "تستطيع التخرج بعد 6 ساعات (المادة 62).",
+      citations: [],
+    });
+
+    render(<ChatScreen />);
+    await ask();
+
+    const card = await screen.findByRole("group", { name: t.chat.consent.title });
+
+    fireEvent.click(
+      within(card).getByRole("button", { name: t.chat.consent.showJson }),
+    );
+    const shown = within(card).getByText(/"cumulative_gpa"/).textContent;
+
+    fireEvent.click(
+      within(card).getByRole("button", { name: t.chat.consent.approve }),
+    );
+
+    await waitFor(() => expect(sendWithData).toHaveBeenCalledTimes(1));
+
+    const [sent] = (sendWithData as Mock).mock.calls[0] as [
+      { message: string; data: unknown },
+    ];
+
+    expect(sent.message).toBe(QUESTION);
+    expect(sent.data).toEqual(DATA);
+    expect(shown).toBe(JSON.stringify(sent.data, null, 2));
+
+    expect(
+      await screen.findByText("تستطيع التخرج بعد 6 ساعات (المادة 62)."),
+    ).toBeTruthy();
+
+    // Single use: the card is gone, so a second approval is impossible.
+    expect(screen.queryByRole("group", { name: t.chat.consent.title })).toBeNull();
+  });
+
+  it("sends nothing when the student cancels, and answers from the values instead", async () => {
+    render(<ChatScreen />);
+    await ask();
+
+    const card = await screen.findByRole("group", { name: t.chat.consent.title });
+
+    fireEvent.click(
+      within(card).getByRole("button", { name: t.chat.consent.cancel }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByRole("group", { name: t.chat.consent.title })).toBeNull(),
+    );
+
+    expect(sendWithData).not.toHaveBeenCalled();
+    expect(screen.getByText(t.chat.consent.notSent)).toBeTruthy();
+    expect(screen.getByText(/4\.21/)).toBeTruthy();
+  });
+
+  it("never writes the values to web storage", async () => {
+    render(<ChatScreen />);
+    await ask();
+
+    const card = await screen.findByRole("group", { name: t.chat.consent.title });
+
+    fireEvent.click(
+      within(card).getByRole("button", { name: t.chat.consent.cancel }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByRole("group", { name: t.chat.consent.title })).toBeNull(),
+    );
+
+    const stored = storedText();
+
+    expect(stored).not.toContain("987654");
+    expect(stored).not.toContain("cumulative_gpa");
+  });
+
+  it("reports the site to open when the extension cannot read a page", async () => {
+    (runTool as Mock).mockResolvedValue({ ok: false, error: "not_logged_in" });
+
+    render(<ChatScreen />);
+    await ask();
+
+    expect(
+      await screen.findByText(
+        t.chat.errors.notSignedInFor.replace("{source}", t.chat.toolSources.edugate),
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("group", { name: t.chat.consent.title }),
+    ).toBeNull();
+  });
+});

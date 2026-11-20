@@ -13,12 +13,18 @@ export type ChatErrorKind =
 export type SendMessageResult =
   | { ok: true; kind: "answer"; answer: string; citations: Citation[] }
   | { ok: true; kind: "tool"; tool: string }
+  | { ok: true; kind: "reason"; tools: string[] }
   | { ok: false; error: ChatErrorKind };
 
 export type SendMessageInput = {
   message: string;
   sessionId: string;
   signal?: AbortSignal;
+};
+
+export type SendWithDataInput = SendMessageInput & {
+  /** One entry per tool the reply named, holding exactly the contract's fields. */
+  data: Record<string, unknown>;
 };
 
 const MODE = process.env.NEXT_PUBLIC_CHAT_MODE === "api" ? "api" : "mock";
@@ -101,14 +107,36 @@ function parseTool(body: Record<string, unknown>): SendMessageResult | null {
   return { ok: true, kind: "tool", tool };
 }
 
+/** A `reason` reply names one to three tools, and nothing else. */
+const MAX_REASON_TOOLS = 3;
+
+function parseReason(body: Record<string, unknown>): SendMessageResult | null {
+  const { tools } = body;
+
+  if (
+    !Array.isArray(tools) ||
+    tools.length < 1 ||
+    tools.length > MAX_REASON_TOOLS ||
+    !tools.every((tool) => typeof tool === "string" && tool.length > 0)
+  ) {
+    return null;
+  }
+
+  return { ok: true, kind: "reason", tools };
+}
+
 /** A body without `type` is an answer, as the contract says. */
-function parseResponse(body: unknown): SendMessageResult | null {
+export function parseChatResponse(body: unknown): SendMessageResult | null {
   if (!isRecord(body)) {
     return null;
   }
 
   if (body.type === "tool") {
     return parseTool(body);
+  }
+
+  if (body.type === "reason") {
+    return parseReason(body);
   }
 
   if (body.type === undefined || body.type === "answer") {
@@ -118,16 +146,12 @@ function parseResponse(body: unknown): SendMessageResult | null {
   return null;
 }
 
-export async function sendMessage({
-  message,
-  sessionId,
-  signal,
-}: SendMessageInput): Promise<SendMessageResult> {
-  if (MODE === "mock") {
-    const { mockSendMessage } = await import("./chatMock");
-    return mockSendMessage({ message, sessionId, signal });
-  }
-
+/** One POST to the API, with the same timeout and error codes for both endpoints. */
+async function post(
+  path: string,
+  payload: unknown,
+  signal?: AbortSignal,
+): Promise<SendMessageResult> {
   if (signal?.aborted) {
     return { ok: false, error: "aborted" };
   }
@@ -144,11 +168,11 @@ export async function sendMessage({
   signal?.addEventListener("abort", forwardAbort, { once: true });
 
   try {
-    const response = await fetch(`${BASE_URL}/chat`, {
+    const response = await fetch(`${BASE_URL}${path}`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, session_id: sessionId }),
+      body: JSON.stringify(payload),
       signal: controller.signal,
     });
 
@@ -161,7 +185,7 @@ export async function sendMessage({
         return { ok: false, error: "server_unavailable" };
       }
 
-      return parseResponse(body) ?? { ok: false, error: "server_unavailable" };
+      return parseChatResponse(body) ?? { ok: false, error: "server_unavailable" };
     }
 
     if (response.status === 401) {
@@ -187,4 +211,39 @@ export async function sendMessage({
     clearTimeout(timer);
     signal?.removeEventListener("abort", forwardAbort);
   }
+}
+
+export async function sendMessage({
+  message,
+  sessionId,
+  signal,
+}: SendMessageInput): Promise<SendMessageResult> {
+  if (MODE === "mock") {
+    const { mockSendMessage } = await import("./chatMock");
+    return mockSendMessage({ message, sessionId, signal });
+  }
+
+  return post("/chat", { message, session_id: sessionId }, signal);
+}
+
+/**
+ * Sends the values the student approved, once, for one question. Called only from the
+ * consent card's approve button; nothing else reaches `/chat/with-data`.
+ */
+export async function sendWithData({
+  message,
+  sessionId,
+  data,
+  signal,
+}: SendWithDataInput): Promise<SendMessageResult> {
+  if (MODE === "mock") {
+    const { mockSendWithData } = await import("./chatMock");
+    return mockSendWithData({ message, sessionId, data, signal });
+  }
+
+  return post(
+    "/chat/with-data",
+    { message, session_id: sessionId, data },
+    signal,
+  );
 }

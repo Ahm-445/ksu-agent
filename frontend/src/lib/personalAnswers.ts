@@ -504,6 +504,20 @@ export function personalAnswer(
   }
 }
 
+/**
+ * The factual answers for a reasoning question the student did not send: one template answer
+ * per tool, from the values already read in the browser. Nothing leaves the device.
+ */
+export function consentAnswers(
+  results: { tool: string; data: ToolData }[],
+  lang: Lang,
+): string {
+  return results
+    .map(({ tool, data }) => personalAnswer(tool, data, lang))
+    .filter((answer): answer is string => Boolean(answer))
+    .join("\n\n");
+}
+
 export type ToolErrorKey =
   | "extensionMissingFor"
   | "consentMissing"
