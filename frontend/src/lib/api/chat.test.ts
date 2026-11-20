@@ -47,7 +47,39 @@ describe("a reasoning reply", () => {
 
     expect(
       parseChatResponse({ answer: "نص", citations: [] }),
-    ).toEqual({ ok: true, kind: "answer", answer: "نص", citations: [] });
+    ).toEqual({
+      ok: true,
+      kind: "answer",
+      answer: "نص",
+      citations: [],
+      basis: "regulation",
+    });
+  });
+
+  it("keeps the basis the backend names, and the regulation for anything else", () => {
+    expect(
+      parseChatResponse({
+        answer: "نص",
+        citations: [],
+        basis: "student_data",
+      }),
+    ).toEqual({
+      ok: true,
+      kind: "answer",
+      answer: "نص",
+      citations: [],
+      basis: "student_data",
+    });
+
+    expect(
+      parseChatResponse({ answer: "نص", citations: [], basis: "something" }),
+    ).toEqual({
+      ok: true,
+      kind: "answer",
+      answer: "نص",
+      citations: [],
+      basis: "regulation",
+    });
   });
 });
 
@@ -79,6 +111,7 @@ describe("sending the approved values", () => {
       kind: "answer",
       answer: "جواب",
       citations: [],
+      basis: "regulation",
     });
     const [url, init] = fetchMock.mock.calls[0] as unknown as [
       string,

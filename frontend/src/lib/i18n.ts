@@ -118,6 +118,7 @@ export type Dictionary = {
     articleLabel: string;
     opensInNewTab: string;
     noSource: string;
+    notFromRegulation: string;
     searching: string;
     disclaimer: string;
     newMessages: string;
@@ -307,6 +308,8 @@ const ar: Dictionary = {
     opensInNewTab: "يفتح في تبويب جديد",
     noSource:
       "لم يُعثر على مصدر رسمي لهذه الإجابة. للتأكد، راجع عمادة القبول والتسجيل.",
+    notFromRegulation:
+      "هذه الإجابة مبنية على بياناتك أنت، ولا يجيب عليها حكم في اللائحة.",
     searching: "جارٍ البحث في المصادر…",
     disclaimer: "قد يخطئ المساعد. تحقق دائمًا من المصدر.",
     newMessages: "رسائل جديدة",
@@ -523,6 +526,8 @@ const en: Dictionary = {
     opensInNewTab: "opens in a new tab",
     noSource:
       "No official source was found for this answer. Please confirm with the Deanship of Admission and Registration.",
+    notFromRegulation:
+      "This answer rests on your own data; no rule in the regulation answers it.",
     searching: "Searching the official sources…",
     disclaimer: "The assistant can make mistakes. Always check the source.",
     newMessages: "New messages",

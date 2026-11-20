@@ -203,6 +203,7 @@ export function ChatScreen() {
           role: "assistant",
           text: result.answer,
           citations: result.citations,
+          basis: result.basis,
           status: "ok",
         });
         return;
@@ -337,6 +338,7 @@ export function ChatScreen() {
         role: "assistant",
         text: result.answer,
         citations: result.citations,
+        basis: result.basis,
         status: "ok",
       });
       return;

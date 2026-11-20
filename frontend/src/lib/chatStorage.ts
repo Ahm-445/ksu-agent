@@ -1,4 +1,4 @@
-import type { Citation } from "@/lib/api/chat";
+import type { AnswerBasis, Citation } from "@/lib/api/chat";
 
 export const CHAT_STORAGE_PREFIX = "ksu-agent-chat:";
 export const MAX_STORED_MESSAGES = 50;
@@ -10,6 +10,8 @@ export type ChatMessage = {
   note?: string;
   personal?: boolean;
   citations?: Citation[];
+  /** What the answer rests on, so a stored answer still says so after a reload. */
+  basis?: AnswerBasis;
   status: "ok" | "error";
   errorKind?: "invalid" | "server_unavailable";
 };
@@ -58,7 +60,7 @@ function parseMessage(value: unknown): ChatMessage | null {
     return null;
   }
 
-  const { id, role, text, note, personal, status, errorKind } = value;
+  const { id, role, text, note, personal, status, errorKind, basis } = value;
 
   if (typeof id !== "string" || typeof text !== "string") {
     return null;
@@ -84,6 +86,10 @@ function parseMessage(value: unknown): ChatMessage | null {
 
   if (errorKind === "invalid" || errorKind === "server_unavailable") {
     message.errorKind = errorKind;
+  }
+
+  if (basis === "regulation" || basis === "student_data") {
+    message.basis = basis;
   }
 
   const citations = parseCitations(value.citations);

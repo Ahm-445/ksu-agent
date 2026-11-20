@@ -84,7 +84,13 @@ export async function mockSendMessage({
   }
 
   if (message.includes("#nosource")) {
-    return { ok: true, kind: "answer", answer: text.withoutSource, citations: [] };
+    return {
+      ok: true,
+      kind: "answer",
+      answer: text.withoutSource,
+      citations: [],
+      basis: "regulation",
+    };
   }
 
   return {
@@ -92,6 +98,7 @@ export async function mockSendMessage({
     kind: "answer",
     answer: text.withSource,
     citations: [{ ...CITATION }],
+    basis: "regulation",
   };
 }
 
@@ -114,6 +121,7 @@ export async function mockSendWithData({
     kind: "answer",
     answer: text.withSource,
     citations: [{ ...CITATION }],
+    basis: "regulation",
   };
 }
 

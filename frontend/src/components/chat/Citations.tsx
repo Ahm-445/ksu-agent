@@ -1,11 +1,13 @@
 "use client";
 
-import type { Citation } from "@/lib/api/chat";
+import type { AnswerBasis, Citation } from "@/lib/api/chat";
 import { useLanguage } from "@/components/LanguageProvider";
 import { LinkIcon } from "@/components/icons";
 
 type CitationsProps = {
   citations: Citation[];
+  /** What the answer rests on: with no article behind it, the note says which it is. */
+  basis?: AnswerBasis;
 };
 
 function safeHref(url: string): string | null {
@@ -22,13 +24,13 @@ function safeHref(url: string): string | null {
   }
 }
 
-export function Citations({ citations }: CitationsProps) {
+export function Citations({ citations, basis }: CitationsProps) {
   const { t } = useLanguage();
 
   if (citations.length === 0) {
     return (
       <p className="mt-3 border-t border-slate-200/80 pt-3 text-xs leading-relaxed text-muted">
-        {t.chat.noSource}
+        {basis === "student_data" ? t.chat.notFromRegulation : t.chat.noSource}
       </p>
     );
   }

@@ -118,6 +118,7 @@ describe("a reasoning question", () => {
       kind: "answer",
       answer: "تستطيع التخرج بعد 6 ساعات (المادة 62).",
       citations: [],
+      basis: "regulation",
     });
 
     render(<ChatScreen />);
@@ -150,6 +151,28 @@ describe("a reasoning question", () => {
 
     // Single use: the card is gone, so a second approval is impossible.
     expect(screen.queryByRole("group", { name: t.chat.consent.title })).toBeNull();
+  });
+
+  it("marks an answer that rests on the student's own data, not the regulation", async () => {
+    (sendWithData as Mock).mockResolvedValue({
+      ok: true,
+      kind: "answer",
+      answer: "لديك تعارض بين اختبارين يوم الأحد.",
+      citations: [],
+      basis: "student_data",
+    });
+
+    render(<ChatScreen />);
+    await ask();
+
+    const card = await screen.findByRole("group", { name: t.chat.consent.title });
+
+    fireEvent.click(
+      within(card).getByRole("button", { name: t.chat.consent.approve }),
+    );
+
+    expect(await screen.findByText(t.chat.notFromRegulation)).toBeTruthy();
+    expect(screen.queryByText(t.chat.noSource)).toBeNull();
   });
 
   it("sends nothing when the student cancels, and answers from the values instead", async () => {

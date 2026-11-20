@@ -10,8 +10,17 @@ export type ChatErrorKind =
   | "server_unavailable"
   | "aborted";
 
+/** What an answer rests on: the regulation, or the student's own numbers alone. */
+export type AnswerBasis = "regulation" | "student_data";
+
 export type SendMessageResult =
-  | { ok: true; kind: "answer"; answer: string; citations: Citation[] }
+  | {
+      ok: true;
+      kind: "answer";
+      answer: string;
+      citations: Citation[];
+      basis: AnswerBasis;
+    }
   | { ok: true; kind: "tool"; tool: string }
   | { ok: true; kind: "reason"; tools: string[] }
   | { ok: false; error: ChatErrorKind };
@@ -77,12 +86,20 @@ function parseCitations(value: unknown): Citation[] | null {
   return citations;
 }
 
+/**
+ * The basis the backend names, and the regulation for anything else: a body without it
+ * (an older server) is a regulation answer.
+ */
+function parseBasis(value: unknown): AnswerBasis {
+  return value === "student_data" ? "student_data" : "regulation";
+}
+
 function parseAnswer(body: unknown): SendMessageResult | null {
   if (!isRecord(body)) {
     return null;
   }
 
-  const { answer, citations } = body;
+  const { answer, citations, basis } = body;
 
   if (typeof answer !== "string" || !answer.trim()) {
     return null;
@@ -94,7 +111,13 @@ function parseAnswer(body: unknown): SendMessageResult | null {
     return null;
   }
 
-  return { ok: true, kind: "answer", answer, citations: parsedCitations };
+  return {
+    ok: true,
+    kind: "answer",
+    answer,
+    citations: parsedCitations,
+    basis: parseBasis(basis),
+  };
 }
 
 function parseTool(body: Record<string, unknown>): SendMessageResult | null {
