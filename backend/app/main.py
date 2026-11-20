@@ -6,6 +6,10 @@ website runs; POST /chat/with-data answers a reasoning question from the values 
 student approved sending. Retrieval and generation live in backend/scripts (retrieve.py,
 answer.py); this module validates the request and maps failures to status codes. The API
 key is read from .env by answer.make_client and never appears in a response or a log line.
+
+A reasoning reply carries a `route_token` (app/route_token.py): the route the question was
+given, signed. `/chat/with-data` verifies it and answers from the route it names instead of
+deciding the kind again, so a question only the classifier routed is not refused there.
 """
 
 from __future__ import annotations
@@ -23,13 +27,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 import answer
-from app import facts
+from app import facts, intent, route_token
 from app.auth.routes import require_user, router as auth_router
-from app.tools import (
-    detect_personal_request,
-    detect_reasoning_kind,
-    detect_reasoning_tools,
-)
+from app.auth.store import User
+from app.tools import ToolRequest, detect_personal_request
 from app.with_data import DataError, data_size, validate_data
 
 LOGGER = logging.getLogger(__name__)
@@ -98,11 +99,14 @@ def _validation_code(exc: RequestValidationError) -> str:
     FastAPI's own 422 body repeats the offending input, and on /chat/with-data that input is
     a value the student approved for one answer (ADR 0001, rule 2), so both answer paths
     always answer with a code: `data_invalid` for a `data` the contract does not allow,
+    `route_invalid` for a `route_token` that does not bind this question to this student,
     `bad_request` for anything else, such as a body that is not JSON.
     """
     code = _message_validation_code(exc)
     if code is not None:
         return code
+    if any("route_token" in error.get("loc", ()) for error in exc.errors()):
+        return "route_invalid"
     if any("data" in error.get("loc", ()) for error in exc.errors()):
         return "data_invalid"
     return "bad_request"
@@ -137,13 +141,15 @@ class ChatRequest(BaseModel):
 
 
 class WithDataRequest(ChatRequest):
-    """`/chat/with-data`: the question, and the values the website read for it.
+    """`/chat/with-data`: the question, the token it was routed with, and its values.
 
-    `data` is one entry per tool the `/chat` reply named; `validate_data` checks the keys
-    against that list and each value against the tool's contract fields.
+    `route_token` is the one `/chat` issued for this question and this student (app/route_token.py);
+    `data` is one entry per tool the token names, and `validate_data` checks the keys against that
+    list and each value against the tool's contract fields.
     """
 
     data: dict[str, Any] = Field(default_factory=dict)
+    route_token: str = Field(..., max_length=2048)
 
 class CitationModel(BaseModel):
     """One cited article, in the contract's field order."""
@@ -180,15 +186,16 @@ class ToolResponse(BaseModel):
 
 
 class ReasonResponse(BaseModel):
-    """The tools a reasoning question needs, in the contract's order.
+    """The tools a reasoning question needs, in the contract's order, and its route token.
 
-    Also nothing but names: the website runs these tools, shows the student what would
-    be sent, and asks for consent for this one question (ADR 0001, rule 5).
+    Nothing but names: the website runs these tools, shows the student what would be sent, and
+    asks for consent for this one question (ADR 0001, rule 5). `route_token` binds the answer to
+    the route the question was given, so `/chat/with-data` never has to decide it again.
     """
 
     type: Literal["reason"] = "reason"
     tools: list[str]
-
+    route_token: str
 
 @lru_cache
 def get_config() -> answer.ChatConfig:
@@ -223,40 +230,54 @@ def get_reasoning() -> facts.ReasoningConfig:
 @app.post(
     "/chat",
     response_model=ChatResponse | ToolResponse | ReasonResponse,
-    dependencies=[Depends(require_user)],
 )
-def chat(request: ChatRequest) -> ChatResponse | ToolResponse | ReasonResponse:
+def chat(
+    request: ChatRequest, user: User = Depends(require_user)
+) -> ChatResponse | ToolResponse | ReasonResponse:
     """Answer one question: a tool request, a reasoning request, or an answer.
 
-    Only for a signed-in student: require_user answers 401 before this runs.
+    Only for a signed-in student: require_user answers 401 before this runs. The student is
+    taken here rather than through `dependencies`, because a reasoning reply carries a token
+    that names the student it was issued for.
     """
-    # A question about the student's own data becomes a tool or reasoning request, and
-    # the values are read in their browser: no retrieval, no model, nothing personal
-    # here. Only tool names are logged — never the question, never a value.
+    # The regex is the fast path: it costs nothing, so it decides first and its answer is
+    # never second guessed. Only tool names and the route are logged — never the question.
     personal = detect_personal_request(request.message)
 
-    if personal is not None and personal.reasoning:
-        LOGGER.info("answered a reasoning question with the tools %s", personal.tools)
-        return ReasonResponse(tools=list(personal.tools))
-
     if personal is not None:
-        LOGGER.info("answered a question with the tool %s", personal.tools[0])
-        return ToolResponse(tool=personal.tools[0])
+        route = intent.route_name(personal, request.message)
+        LOGGER.info("routed a question to %s by regex", route)
+        return _personal_response(
+            personal, route=route, user_id=user.id, message=request.message
+        )
 
-    # Built here rather than through Depends: FastAPI solves dependencies before the
-    # request body, so a dependency would load the index and the model client for a
-    # body it then rejects with a 422. Called after validation, a rejected request
-    # costs nothing.
+    # The regex recognised nothing, so the model is asked which route the question takes
+    # (app/intent.py). It costs one short call, and it is the only model call a tool answer
+    # ever makes: the values are still read in the student's browser.
+    # The client, the config and the index are built here rather than through Depends:
+    # FastAPI solves dependencies before the request body, so a dependency would load the
+    # index for a body it then rejects with a 422. Called after validation, a rejected
+    # request costs nothing.
     # All of it runs inside the try, the index and the key included: a missing index file,
     # a missing API key and anything unexpected answer the same 503. Only the exception's
     # type is logged, because an error's message can carry the question and uvicorn logs a
     # chained traceback with it.
     try:
+        config = get_config()
+        client = get_client()
+        route = intent.classify(request.message, client=client, config=config)
+        personal = intent.request_for(route)
+
+        if personal is not None:
+            return _personal_response(
+                personal, route=route, user_id=user.id, message=request.message
+            )
+
         result = answer.answer_question(
             request.message,
             retriever=get_retriever(),
-            client=get_client(),
-            config=get_config(),
+            client=client,
+            config=config,
             source=get_source(),
         )
     except Exception as exc:
@@ -272,6 +293,26 @@ def chat(request: ChatRequest) -> ChatResponse | ToolResponse | ReasonResponse:
     )
     return _answer_response(result)
 
+def _personal_response(
+    personal: ToolRequest, *, route: str, user_id: str, message: str
+) -> ToolResponse | ReasonResponse:
+    """The reply for a question answered with tools, whichever router decided it.
+
+    A reasoning reply carries the route token, so `/chat/with-data` answers from the kind and the
+    tools this question was given instead of deciding them again with the regex alone.
+    """
+    if personal.reasoning:
+        return ReasonResponse(
+            tools=list(personal.tools),
+            route_token=route_token.issue(
+                user_id=user_id,
+                message=message,
+                kind=intent.kind_for(route),
+                tools=personal.tools,
+            ),
+        )
+
+    return ToolResponse(tool=personal.tools[0])
 
 def _answer_response(
     result: answer.Answer, basis: Literal["regulation", "student_data"] = "regulation"
@@ -294,9 +335,10 @@ def _answer_response(
 @app.post(
     "/chat/with-data",
     response_model=ChatResponse,
-    dependencies=[Depends(require_user)],
 )
-def chat_with_data(request: WithDataRequest) -> ChatResponse:
+def chat_with_data(
+    request: WithDataRequest, user: User = Depends(require_user)
+) -> ChatResponse:
     """Answer one reasoning question from the student's own values.
 
     The body carries the values the website read in the browser, once, after the student
@@ -305,13 +347,25 @@ def chat_with_data(request: WithDataRequest) -> ChatResponse:
 
     A verdict kind (absences, academic warning, graduation, GPA target, exam clash) is answered
     from the computed numbers and the template, with no model call at all.
+
+    The kind and the tools come from the token `/chat` issued for this question, not from the
+    regex again: a question only the classifier routed would otherwise be refused here.
     """
     started = time.monotonic()
 
-    kind = detect_reasoning_kind(request.message)
+    try:
+        claim = route_token.verify(
+            request.route_token, user_id=user.id, message=request.message
+        )
+    except route_token.RouteTokenError:
+        # The token's text is never logged: it is a signature, and it names no value anyway.
+        LOGGER.info("rejected a with-data request: route_invalid")
+        raise HTTPException(status_code=422, detail="route_invalid") from None
+
+    kind = claim.kind
 
     try:
-        data = validate_data(request.data, detect_reasoning_tools(request.message))
+        data = validate_data(request.data, claim.tools)
     except DataError as exc:
         LOGGER.info("rejected a with-data request: %s", exc.code)
         raise HTTPException(status_code=422, detail=exc.code) from exc

@@ -59,7 +59,7 @@ The response gains a `type` field; nothing else about Phase 1 changes.
 ```
 
 ```json
-{ "type": "reason", "tools": [ "get_plan_progress", "get_gpa" ] }
+{ "type": "reason", "tools": [ "get_plan_progress", "get_gpa" ], "route_token": "eyJ... .9f..." }
 ```
 
 - `answer` — the Phase 1 shape, unchanged apart from the added `type`.
@@ -69,9 +69,10 @@ The response gains a `type` field; nothing else about Phase 1 changes.
   the catalogue.
 - `reason` — the question needs reasoning over the student's own values, for example
   "can I graduate next term?". `tools` names one to three tools from the catalogue
-  and carries nothing else: no data, no args. The website runs those tools, shows the
-  student exactly what would be sent, and posts `/chat/with-data` only if they approve
-  this one question.
+  and carries no data and no args. `route_token` is what binds this reply to the
+  question it answered: see [the route token](#the-route-token) below. The website runs
+  those tools, shows the student exactly what would be sent, and posts
+  `/chat/with-data` only if they approve this one question.
 - **Backward compatibility:** a response without `type` must be treated as
   `"answer"`. A client that does not know `reason` shows its generic error for that
   message; it never treats `tools` as data and never posts `/chat/with-data`.
@@ -92,6 +93,7 @@ answered in the browser from the tool result and never reach this endpoint.
 request:  {
   "message": "...",
   "session_id": "...",
+  "route_token": "eyJ... .9f...",
   "data": {
     "get_gpa": { "cumulative_gpa": "4.21", "scale": "5", "earned_hours": 96, "registered_hours": 99, "as_of_term": "الفصل الأول 1448/1449" },
     "get_plan_progress": { "completed_hours": 96, "remaining_hours": 3, "remaining_courses": [] }
@@ -100,16 +102,40 @@ request:  {
 response: { "type": "answer", "answer": "...", "citations": [ { "title": "...", "article": "...", "url": "..." } ], "basis": "regulation" }
 ```
 
-There is no `tool` field: the tool names are the keys of `data`.
+There is no `tool` field: the tool names are the keys of `data`, and `route_token` is the
+one the reasoning reply carried, unchanged.
+
+### The route token
+
+A reasoning question is routed once, by `/chat`: the regex first, and the classifier when
+the regex does not recognise the wording. The route decides the kind the answer is computed
+from. `/chat/with-data` therefore cannot decide it again: a question only the classifier
+routed would be refused there, because the regex alone does not know it.
+
+`route_token` closes that gap. It is issued with every `reason` reply and binds the reply to
+the question it answered:
+
+- It is an HMAC-SHA256, under a server secret, over the user id, the SHA-256 of the
+  message, the kind, the tools and the issue time, written as
+  `base64url(payload).base64url(mac)`. It carries no student data and no text of the
+  question.
+- `/chat/with-data` checks the signature, the expiry, the student and the question, in that
+  order, and then uses the token's kind and tools in place of the regex. A failure is 422
+  `route_invalid`.
+- It lives 15 minutes and is used once. The website keeps it in memory with the consent
+  card and sends it back with the approved values; it is never stored and never logged.
+- The secret is `KSU_ROUTE_SECRET` in `backend/.env`, read the way the other secrets are.
+  Without it the process signs with a random secret and logs a warning that names no value,
+  so the tokens of that process do not survive a restart.
 
 `basis` says what the answer rests on: `"regulation"` when the regulation answers
 the question, `"student_data"` when the student's own numbers are all there is (an
 exam clash, for example) and the answer then ends with a sentence saying so. A
 response without `basis` is a regulation answer.
 
-- The keys of `data` must equal the tools the `/chat` reply named in `tools`, one
-  entry each. A missing entry is `data_missing`; a key the reply did not name is
-  `unknown_tool`.
+- The keys of `data` must equal the tools the `route_token` names, which are the tools
+  the `/chat` reply named in `tools`, one entry each. A missing entry is `data_missing`; a
+  key the token did not name is `unknown_tool`.
 - Each value carries exactly the fields the catalogue below lists for that tool, with
   the listed types — nothing more.
 
@@ -133,11 +159,12 @@ Rules:
 | :--- | :--- |
 | `message_empty` | The message is absent, empty or whitespace only. |
 | `message_too_long` | The message is over 1000 characters. |
-| `data_missing` | `data` is absent, empty, or lacks a tool the reply named. |
+| `route_invalid` | `route_token` is absent, or does not bind this question to this student: a wrong signature, an expired token, another student's token, or another question's. |
+| `data_missing` | `data` is absent, empty, or lacks a tool the token names. |
 | `data_too_large` | The whole request body is over 20 KB. |
-| `unknown_tool` | A key of `data` is not a catalogue tool, or is a tool the reply did not name. |
+| `unknown_tool` | A key of `data` is not a catalogue tool, or is a tool the token did not name. |
 | `data_invalid` | A value does not match its tool's catalogue shape: an extra key, a missing key or a wrong type. |
-| `bad_request` | The body is not a JSON object, or a field other than `message` and `data` does not fit. |
+| `bad_request` | The body is not a JSON object, or a field other than `message`, `route_token` and `data` does not fit. |
 
 No 422 body repeats the request. FastAPI's own validation body carries the offending
 input, which on this endpoint is a value the student approved for one answer, so `/chat`
@@ -297,7 +324,9 @@ a new ADR.
 What the backend may log:
 
 - `/chat` — may log the message length, the chosen tool name and the latency. Never the
-  message text as personal data, and never any value the tool returned.
+  message text as personal data, never the `route_token`, and never any value the tool
+  returned.
 - `/chat/with-data` — may log the tool name, the byte size of `data` and the latency.
-  Never `data` itself, never a field of it, and never the message alongside it.
+  Never `data` itself, never a field of it, never the message alongside it, and never the
+  `route_token`.
 - Neither endpoint may log a field of `data` in an error report or a traceback.

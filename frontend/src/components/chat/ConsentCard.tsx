@@ -3,10 +3,11 @@
 import { useId, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
 import { BrandMark, EyeIcon } from "@/components/icons";
-import type { ConsentRequest } from "@/lib/consent";
+import type { ConsentContents } from "@/lib/consent";
 
 type ConsentCardProps = {
-  request: ConsentRequest;
+  // The card shows the values, never the route token: it is not part of what is sent.
+  request: ConsentContents;
   busy: boolean;
   onApprove: () => void;
   onCancel: () => void;

@@ -170,7 +170,7 @@ export function ChatScreen() {
       // A reasoning question needs values compared, so every tool runs first, then the
       // student sees one card and decides for this question only.
       if (result.ok && result.kind === "reason") {
-        const outcome = await readForConsent(question, result.tools, t, runTool);
+        const outcome = await readForConsent(question, result, t, runTool);
 
         if (!mountedRef.current || requestRef.current !== requestId) {
           return;
@@ -322,6 +322,7 @@ export function ChatScreen() {
       message: request.question,
       sessionId,
       data: request.data,
+      routeToken: request.routeToken,
       signal: controller.signal,
     });
 

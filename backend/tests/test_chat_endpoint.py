@@ -5,6 +5,9 @@ reply shape, patched onto the module so the endpoint's own validation and status
 codes are what is under test.
 """
 
+import json
+from types import SimpleNamespace
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -96,10 +99,11 @@ def test_a_reasoning_question_returns_the_tools_it_needs(api):
     response = client.post("/chat", json={"message": "هل أقدر أتخرج الفصل القادم؟"})
 
     assert response.status_code == 200
-    assert response.json() == {
-        "type": "reason",
-        "tools": ["get_plan_progress", "get_gpa"],
-    }
+    body = response.json()
+    assert body["type"] == "reason"
+    assert body["tools"] == ["get_plan_progress", "get_gpa"]
+    # The token binds this question and this student to that route (test_route_token.py).
+    assert body["route_token"]
     assert fake.calls == []
 
 
@@ -119,18 +123,22 @@ def test_a_reasoning_request_builds_neither_the_retriever_nor_the_model(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"type": "reason", "tools": ["get_gpa"]}
+    body = response.json()
+    assert body["type"] == "reason"
+    assert body["tools"] == ["get_gpa"]
+    assert body["route_token"]
     assert fake.calls == []
 
 
-def test_a_reasoning_request_logs_the_tools_and_never_the_question(api, caplog):
+def test_a_reasoning_request_logs_the_route_and_never_the_question(api, caplog):
     client, _fake = api(content=reply(True, "x"))
     question = "هل أنا قريب من الحرمان هذا الفصل؟"
 
     with caplog.at_level("INFO", logger="app.main"):
         client.post("/chat", json={"message": question})
 
-    assert "get_absences" in caplog.text
+    assert "reason:absences" in caplog.text
+    assert "by regex" in caplog.text
     assert question not in caplog.text
     assert "الحرمان" not in caplog.text
 
@@ -190,7 +198,9 @@ def test_a_message_of_exactly_1000_characters_is_accepted(api):
     response = client.post("/chat", json={"message": "س" * 1000})
 
     assert response.status_code == 200
-    assert len(fake.calls) == 1
+    # A wall of one letter is not a tool question, so the classifier is asked first and
+    # the answer is the second call.
+    assert len(fake.calls) == 2
 
 
 def test_session_id_is_optional(api):
@@ -200,6 +210,117 @@ def test_session_id_is_optional(api):
 
     assert response.status_code == 200
 
+
+# --- the classifier, for a question the regex does not recognise --------------
+
+# None of these is matched by app/tools.py, so each one reaches the classifier.
+HELD_OUT_TOOL_QUESTION = "كم مرة غبت في 434"
+HELD_OUT_REASON_QUESTION = "نظم لي أسبوعي"
+
+
+def client_failing_once(content, error):
+    """A fake whose first call (the classifier) raises and whose answer call works."""
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise error
+        message = SimpleNamespace(content=content, refusal=None)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=message)], usage=None
+        )
+
+    completions = SimpleNamespace(create=create)
+
+    return SimpleNamespace(chat=SimpleNamespace(completions=completions)), calls
+
+def test_the_classifier_is_not_asked_when_the_regex_matches(api, monkeypatch):
+    """The regex is the fast path: a question it knows never costs a model call."""
+    client, fake = api(content=reply(True, "x"))
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("a regex match must not build the client")
+
+    monkeypatch.setattr(main, "get_client", refuse)
+
+    response = client.post("/chat", json={"message": "كم معدلي التراكمي؟"})
+
+    assert response.status_code == 200
+    assert response.json() == {"type": "tool", "tool": "get_gpa", "args": {}}
+    assert fake.calls == []
+
+
+def test_a_regex_miss_returns_the_tool_the_classifier_names(api):
+    client, fake = api(content=json.dumps({"route": "get_absences"}))
+
+    response = client.post("/chat", json={"message": HELD_OUT_TOOL_QUESTION})
+
+    assert response.status_code == 200
+    assert response.json() == {"type": "tool", "tool": "get_absences", "args": {}}
+    # One call: the classifier's. A tool answer never reaches the model again.
+    assert len(fake.calls) == 1
+    assert fake.calls[0]["temperature"] == 0.0
+    assert fake.calls[0]["timeout"] == 3.0
+
+
+def test_a_regex_miss_returns_the_reasoning_tools_the_classifier_names(api):
+    client, fake = api(content=json.dumps({"route": "reason:plan_week"}))
+
+    response = client.post("/chat", json={"message": HELD_OUT_REASON_QUESTION})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["type"] == "reason"
+    assert body["tools"] == ["get_assignments", "get_schedule"]
+    assert body["route_token"]
+    assert len(fake.calls) == 1
+
+
+def test_a_classifier_route_of_regulation_still_gets_an_answer(api):
+    """The classifier only decides the route; a regulation route is answered as before."""
+    client, fake = api(
+        content=[
+            json.dumps({"route": "regulation"}),
+            reply(True, "الحد الأدنى 2,75 (المادة 62)."),
+        ]
+    )
+
+    response = client.post("/chat", json={"message": HELD_OUT_TOOL_QUESTION})
+
+    assert response.status_code == 200
+    assert response.json()["type"] == "answer"
+    assert len(fake.calls) == 2
+
+
+def test_a_classifier_failure_falls_back_to_the_regulation(api, monkeypatch):
+    """A broken classifier costs the tool answer, never the answer itself."""
+    client, _fake = api(content=reply(True, "الحد الأدنى 2,75 (المادة 62)."))
+    broken, calls = client_failing_once(
+        reply(True, "الحد الأدنى 2,75 (المادة 62)."), TimeoutError("too slow")
+    )
+    monkeypatch.setattr(main, "get_client", lambda: broken)
+
+    response = client.post("/chat", json={"message": HELD_OUT_TOOL_QUESTION})
+
+    assert response.status_code == 200
+    assert response.json()["type"] == "answer"
+    assert len(calls) == 2
+
+
+def test_a_classifier_route_is_logged_with_the_router_that_chose_it(api, caplog):
+    client, _fake = api(content=json.dumps({"route": "get_absences"}))
+
+    with caplog.at_level("INFO"):
+        client.post("/chat", json={"message": HELD_OUT_TOOL_QUESTION})
+
+    assert "get_absences" in caplog.text
+    assert "by classifier" in caplog.text
+    assert HELD_OUT_TOOL_QUESTION not in caplog.text
+    assert "434" not in caplog.text
+
+
+# --- failure handling -----------------------------------------------------
 
 # --- failure handling -----------------------------------------------------
 
