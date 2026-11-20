@@ -483,13 +483,47 @@ def test_the_template_for_twenty_three_hours_names_the_deanship_and_article_24()
     assert "عمادة شؤون القبول والتسجيل" in text
 
 
-def test_the_template_for_eighteen_hours_says_one_term():
+def test_the_template_for_eighteen_hours_says_one_term_without_promising_it():
     text = answer.template_answer(
         graduation_facts(18, thresholds()), "كم يتبقى لي؟", [ARTICLE_24]
     )
 
-    assert "فتتخرج في فصل واحد" in text
+    assert "فيمكن تسجيلها في فصل واحد، بشرط المتطلبات السابقة" in text
+    assert "فتتخرج" not in text
     assert "عمادة شؤون القبول والتسجيل" not in text
+
+
+def test_the_template_for_twenty_three_hours_asks_for_approval_and_keeps_the_conditions():
+    text = answer.template_answer(
+        graduation_facts(23, thresholds()), "كم يتبقى لي؟", [ARTICLE_24]
+    )
+
+    assert "فيمكن تسجيل الساعات المتبقية في فصل واحد بموافقتها" in text
+    assert "بشرط ألا تمنع المتطلبات السابقة ذلك" in text
+    assert "فتتخرج" not in text
+
+
+def test_two_sequential_courses_warn_that_one_term_may_not_work():
+    """Article 24 does not override the prerequisites, so the answer warns before the student asks."""
+    from app import facts
+
+    plan = {
+        "remaining_hours": 23,
+        "remaining_courses": [
+            {"name": "مشروع تخرج -1", "type": "إجباري"},
+            {"name": "مشروع تخرج -2", "type": "إجباري"},
+        ],
+    }
+    computed = facts.graduation_facts({"get_plan_progress": plan}, thresholds())
+
+    text = answer.template_answer(computed, "كم يتبقى لي؟", [ARTICLE_24])
+
+    assert computed["sequence_pairs"]
+    assert (
+        "تنبيه: وجود مقررين متتابعين قد يجعل التخرج في فصل واحد غير ممكن حتى مع الموافقة."
+        in text
+    )
+    assert "فتتخرج" not in text
 
 
 def test_the_template_for_twenty_five_hours_says_no_approval_holds_it():
@@ -518,3 +552,338 @@ def test_another_kind_gets_no_graduation_rule():
     )
 
     assert answer.GRADUATION_RULES not in messages[0]["content"]
+
+
+# --- the verdict templates ------------------------------------------------
+
+ABSENCE_COURSES = [
+    {"code": "430", "name": "تفاضل وتكامل", "absence_percent": 21, "absences": 5},
+    {"code": "431", "name": "قواعد البيانات", "absence_percent": 11.86, "absences": 3},
+]
+
+
+def absence_facts(*percents):
+    from app import facts
+
+    courses = [
+        {**course, "absence_percent": percent}
+        for course, percent in zip(ABSENCE_COURSES, percents)
+    ]
+    return facts.absences_facts(
+        {"get_absences": {"courses": courses}},
+        {"absence_limit_percent": facts.Threshold(value=25, article=25)},
+    )
+
+
+ARTICLE_25 = make_result(
+    25,
+    "يعد الطالب محروما إذا تجاوزت نسبة غيابه 25% من محاضرات المقرر.",
+)
+
+
+def test_the_absences_template_states_each_course_and_its_remaining_margin():
+    text = answer.template_answer(absence_facts(21, 11.86), "هل أنا قريب من الحرمان؟", [ARTICLE_25])
+
+    assert "تفاضل وتكامل (430): 21% — المتبقي قبل الحد 4%" in text
+    assert "قواعد البيانات (431): 11.86% — المتبقي قبل الحد 13.14%" in text
+    # Article 25's own words: attendance of the contact hours, not a paraphrase of them.
+    assert "يُحرم الطالب من دخول الاختبار النهائي" in text
+    assert "75% من مجموع ساعات الاتصال لجميع أنشطة المقرر" in text
+    assert "أي إذا زاد غيابه عن 25% (المادة 25)" in text
+
+
+def test_the_english_absences_template_follows_article_25_too():
+    text = answer.template_answer(
+        absence_facts(21, 11.86), "Am I close to being barred?", [ARTICLE_25]
+    )
+
+    assert (
+        "barred from the final exam if attendance falls below 75% of the course's total "
+        "contact hours across all its activities, i.e. more than 25% absence (Article 25)."
+        in text
+    )
+
+
+def test_the_absences_template_names_the_near_course_without_calling_it_over():
+    text = answer.template_answer(absence_facts(21, 11.86), "هل أنا قريب من الحرمان؟", [ARTICLE_25])
+
+    assert "لا يوجد مقرر تجاوز الحد" in text
+    assert "قريب من الحد" in text
+    assert "تفاضل وتكامل" in text.split("قريب من الحد")[1]
+    assert "قواعد البيانات" not in text.split("قريب من الحد")[1]
+
+
+def test_the_absences_template_names_the_course_over_the_limit():
+    text = answer.template_answer(absence_facts(27, 11), "هل أنا قريب من الحرمان؟", [ARTICLE_25])
+
+    assert "تجاوزت الحد في: تفاضل وتكامل" in text
+    assert "لا يوجد مقرر تجاوز الحد" not in text
+
+
+# --- academic warning -----------------------------------------------------
+
+
+def warning_facts(gpa, thresholds=None):
+    from app import facts
+
+    return facts.academic_warning_facts(
+        {"get_gpa": {"cumulative_gpa": gpa, "scale": "5"}}, thresholds or {}
+    )
+
+
+def test_the_warning_template_does_not_answer_when_the_regulation_is_silent():
+    """No threshold in the regulation: the template must not say yes or no."""
+    text = answer.template_answer(warning_facts("4.21"), "هل أنا تحت الإنذار؟")
+
+    assert "4.21" in text
+    assert "من 5" in text
+    assert "نعم" not in text
+    assert "لا،" not in text
+    assert "Edugate" in text
+    assert "مرشدك الأكاديمي" in text
+
+
+def test_the_warning_template_gives_the_verdict_when_the_threshold_is_known():
+    from app import facts
+
+    text = answer.template_answer(
+        warning_facts("1.75", {"warning_gpa": facts.Threshold(value=2, article=58)}),
+        "هل أنا تحت الإنذار؟",
+        [make_result(58, "يُنذر الطالب إذا كان معدله التراكمي أقل من 2,00.")],
+    )
+
+    assert "1.75" in text
+    assert "2" in text
+    assert "أنت تحت الحد" in text
+    assert "(المادة 58)" in text
+
+
+# --- GPA target -----------------------------------------------------------
+
+
+def target_facts(target=4.5):
+    from app import facts
+
+    return facts.gpa_target_facts(
+        {"get_gpa": {"cumulative_gpa": "4.21", "scale": "5", "earned_hours": 96}},
+        {},
+        f"كم أحتاج عشان يصير معدلي {target}؟",
+    )
+
+
+def test_the_target_template_states_the_average_for_twelve_fifteen_and_eighteen_hours():
+    text = answer.template_answer(target_facts(), "كم أحتاج عشان يصير معدلي 4.5؟")
+
+    assert "12 ساعة" in text and "6.82" in text
+    assert "15 ساعة" in text and "6.36" in text
+    assert "18 ساعة" in text and "6.05" in text
+
+
+def test_the_target_template_says_an_average_over_the_scale_is_impossible():
+    text = answer.template_answer(target_facts(), "كم أحتاج عشان يصير معدلي 4.5؟")
+
+    assert "أعلى من المقياس 5" in text
+    assert "غير ممكن" in text
+
+
+def test_a_reachable_target_is_not_called_impossible():
+    text = answer.template_answer(target_facts(2.5), "كم أحتاج عشان يصير معدلي 2.5؟")
+
+    assert "غير ممكن" not in text
+
+
+# --- exam conflicts -------------------------------------------------------
+
+
+def exam_facts(exams):
+    from app import facts
+
+    return facts.exam_conflicts_facts({"get_final_exams": {"exams": exams}})
+
+
+def test_the_conflicts_template_names_the_pair_and_the_time():
+    text = answer.template_answer(
+        exam_facts(
+            [
+                {"name": "قواعد البيانات", "date": "6-07-1448", "time": "08:00"},
+                {"name": "هندسة البرمجيات", "date": "6-07-1448", "time": "08:00"},
+            ]
+        ),
+        "هل عندي تعارض في الاختبارات النهائية؟",
+    )
+
+    assert "6-07-1448" in text
+    assert "08:00" in text
+    assert "قواعد البيانات" in text and "هندسة البرمجيات" in text
+
+
+def test_the_conflicts_template_says_so_when_there_is_none():
+    text = answer.template_answer(
+        exam_facts([{"name": "قواعد البيانات", "date": "6-07-1448", "time": "08:00"}]),
+        "هل عندي تعارض في الاختبارات النهائية؟",
+    )
+
+    assert "لا يوجد تعارض" in text
+
+
+# --- planning the week ----------------------------------------------------
+
+
+def week_facts():
+    from datetime import datetime, timedelta, timezone
+
+    from app import facts
+
+    riyadh = timezone(timedelta(hours=3))
+    return facts.plan_week_facts(
+        {
+            "get_assignments": {
+                "items": [
+                    {
+                        "title": "واجب 3",
+                        "course": "SWE 483",
+                        "due_at": "2026-11-21T23:59:00+03:00",
+                    },
+                    {
+                        "title": "كويز",
+                        "course": "SWE 444",
+                        "due_at": "2026-11-25T12:00:00+03:00",
+                    },
+                ]
+            },
+            "get_schedule": {
+                "classes": [
+                    {
+                        "code": "SWE 483",
+                        "name": "هندسة البرمجيات",
+                        "activity": "محاضرة",
+                        "days": [1, 3],
+                        "start": "11:00",
+                        "end": "11:50",
+                    }
+                ]
+            },
+        },
+        now=datetime(2026, 11, 20, 10, 0, tzinfo=riyadh),
+    )
+
+
+def test_the_week_template_puts_the_classes_before_the_due_item_of_each_day():
+    text = answer.template_answer(week_facts(), "كيف أوزع وقتي هالأسبوع؟")
+
+    saturday = text.split("- السبت 21 نوفمبر")[1].split("- الأحد")[0]
+    assert "واجب 3" in saturday
+    assert "11:59 م" in saturday
+
+    wednesday = text.split("- الأربعاء 25 نوفمبر")[1]
+    assert "هندسة البرمجيات" in wednesday
+    assert "11:00 ص-11:50 ص" in wednesday
+
+
+def test_the_week_template_suggests_a_free_block_before_the_due_time():
+    text = answer.template_answer(week_facts(), "كيف أوزع وقتي هالأسبوع؟")
+
+    assert "8:00 ص-11:00 ص" in text
+    assert "180 دقيقة" in text
+
+
+def test_the_week_template_states_no_iso_date():
+    text = answer.template_answer(week_facts(), "كيف أوزع وقتي هالأسبوع؟")
+
+    assert "2026-11-21" not in text
+    assert not __import__("re").search(r"\d{4}-\d{2}-\d{2}", text)
+
+
+def test_the_week_template_says_which_days_have_nothing():
+    text = answer.template_answer(week_facts(), "كيف أوزع وقتي هالأسبوع؟")
+
+    assert "لا محاضرات ولا واجبات" in text
+
+
+# --- answering a verdict kind from the template ----------------------------
+
+
+def test_a_verdict_kind_is_answered_from_the_template_without_a_model():
+    """No client is even passed: a verdict kind has no model call to make."""
+    searcher = FakeRetriever([ARTICLE_25])
+
+    result = answer.answer_from_facts(
+        "absences",
+        "هل أنا قريب من الحرمان؟",
+        retriever=searcher,
+        facts=absence_facts(21, 11.86),
+        extra_queries=("نسبة الغياب والحرمان",),
+    )
+
+    assert "المتبقي قبل الحد" in result.answer
+    assert [query for query, _k in searcher.queries] == [
+        "هل أنا قريب من الحرمان؟",
+        "نسبة الغياب والحرمان",
+    ]
+
+
+def test_a_retrieved_article_is_cited_from_its_own_chunk():
+    result = answer.answer_from_facts(
+        "absences",
+        "هل أنا قريب من الحرمان؟",
+        retriever=FakeRetriever([ARTICLE_25]),
+        facts=absence_facts(21, 11.86),
+    )
+
+    assert result.citations == (
+        answer.Citation(title=TITLE, article=25, url=URL),
+    )
+
+
+def test_an_article_that_was_not_retrieved_is_cited_from_the_source_config():
+    """The template names article 25, so the citation points at the regulation itself."""
+    source = answer.SourceRef(title="لائحة الدراسة والاختبارات", url="https://dar.ksu.edu.sa/r.pdf")
+
+    result = answer.answer_from_facts(
+        "absences",
+        "هل أنا قريب من الحرمان؟",
+        retriever=FakeRetriever([]),
+        facts=absence_facts(21, 11.86),
+        source=source,
+    )
+
+    assert result.citations == (
+        answer.Citation(title=source.title, article=25, url=source.url),
+    )
+
+
+def test_an_article_the_template_does_not_state_is_not_cited():
+    """The graduation template says nothing about article 25, so it is not cited."""
+    result = answer.answer_from_facts(
+        "graduation",
+        "هل أقدر أتخرج الفصل القادم؟",
+        retriever=FakeRetriever([ARTICLE_25]),
+        facts=graduation_facts(18, thresholds()),
+    )
+
+    assert result.citations == ()
+
+
+def test_a_kind_with_no_regulation_cites_nothing():
+    result = answer.answer_from_facts(
+        "exam_conflicts",
+        "هل عندي تعارض في الاختبارات النهائية؟",
+        retriever=FakeRetriever([ARTICLE_25]),
+        facts=exam_facts([{"name": "قواعد البيانات", "date": "6-07-1448", "time": "08:00"}]),
+        needs_regulation=False,
+    )
+
+    assert result.citations == ()
+    assert result.answer.endswith(answer.NO_REGULATION_NOTE)
+
+
+def test_the_shipped_sources_config_names_the_regulation():
+    source = answer.load_source("ref-01")
+
+    assert source is not None
+    assert source.title.startswith("KSU Regulations")
+    assert source.url.startswith("https://dar.ksu.edu.sa/")
+
+
+def test_an_unknown_source_id_is_no_source():
+    assert answer.load_source("ref-99") is None

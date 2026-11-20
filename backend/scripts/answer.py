@@ -14,6 +14,13 @@ the model only explains them, and an answer that states a number the facts, the 
 the cited articles do not carry is asked once more and then replaced by a template
 written from the facts, so the model never states a number it computed itself.
 
+A verdict kind — absences, academic warning, graduation, a GPA target, an exam clash — is
+answered from that template alone (`answer_from_facts`), with no model call at all: the
+numbers are computed and the sentences are fixed. Retrieval still runs, for the citations:
+the article the template states is cited from the retrieved chunk, or from the regulation's
+title and URL in backend/config/sources.toml when retrieval missed it. Only a kind no rule
+answers (planning the week) still goes to the model.
+
 The model, temperature, output limit and prices come from
 backend/config/chat.toml. The thresholds the facts are computed against, and the fixed
 queries run per reasoning kind, come from backend/config/reasoning.toml. The API key is
@@ -38,12 +45,13 @@ from collections.abc import Mapping
 from typing import Any, Callable, Sequence
 
 from embed_chunks import api_key
-from fetch_sources import REPO_ROOT
+from fetch_sources import REPO_ROOT, load_sources
 from retrieve import DEFAULT_K, SearchResult, make_searcher
 
 LOGGER = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = REPO_ROOT / "backend" / "config" / "chat.toml"
+DEFAULT_SOURCES = REPO_ROOT / "backend" / "config" / "sources.toml"
 REQUIRED_FIELDS = (
     "provider",
     "model",
@@ -220,6 +228,14 @@ class ChatConfig:
 
 
 @dataclass(frozen=True)
+class SourceRef:
+    """The regulation itself: its title and URL, for citing an article not retrieved."""
+
+    title: str
+    url: str
+
+
+@dataclass(frozen=True)
 class Citation:
     """One cited article: the source's title, the article number and its URL."""
 
@@ -285,6 +301,14 @@ def load_config(config_path: Path = DEFAULT_CONFIG) -> ChatConfig:
         raise ValueError(f"{config_path}: timeout and retries must be positive")
 
     return config
+
+
+def load_source(source_id: str, config_path: Path = DEFAULT_SOURCES) -> SourceRef | None:
+    """The source's title and URL from sources.toml, or None when it is not declared."""
+    for source in load_sources(config_path):
+        if source.id == source_id:
+            return SourceRef(title=source.title, url=source.url)
+    return None
 
 
 def make_client(config: ChatConfig):
@@ -583,71 +607,93 @@ def _fmt(value: Any) -> str:
 
 
 def _article(number: Any, results: Sequence[SearchResult]) -> str:
-    """The article reference to append, when that article was retrieved.
+    """The article reference a template appends to the rule it states.
 
-    A template names an article only when it is one of the retrieved ones, so every
-    article number in the answer is also a citation.
+    The number is named whether or not the article was retrieved: citations_for_facts cites it
+    from the chunk when it was, and from the regulation's own title and URL when it was not.
     """
     if number is None:
         return ""
-    retrieved = {result.article_number for result in results}
-    return f" (المادة {number})" if number in retrieved else ""
+    return f" (المادة {number})"
 
 
 def _absence_state(course: Mapping[str, Any]) -> str:
-    """What one course's absence means against the limit, in Arabic."""
-    status = course.get("status")
-    margin = _fmt(abs(course["margin_percent"]) if course.get("margin_percent") is not None else None)
-    if status == "over":
-        return f"يتجاوز الحد بـ{margin} نقطة مئوية"
-    if status == "at":
-        return "عند الحد تمامًا"
-    if status == "below":
-        return f"دون الحد بـ{margin} نقطة مئوية"
-    return "لا يمكن الحكم عليه دون حد"
+    """One course's absence against the limit, in Arabic."""
+    margin = course.get("margin_percent")
+    if margin is None:
+        return "لا يمكن الحكم عليه دون حد"
+    if margin < 0:
+        return f"يتجاوز الحد بـ{_fmt(abs(margin))} نقطة مئوية"
+    return f"المتبقي قبل الحد {_fmt(margin)}%"
 
 
 def _absences_template(facts: Mapping[str, Any], results) -> str:
     limit = facts.get("limit_percent")
+    lines: list[str] = []
     if limit is None:
-        lines = ["الحد الأقصى للغياب غير محدد في اللائحة المتاحة، فتحقق من عمادة القبول والتسجيل."]
+        lines.append(
+            "الحد الأقصى للغياب غير محدد في اللائحة المتاحة، فتحقق من عمادة القبول "
+            "والتسجيل."
+        )
     else:
-        lines = [
-            "يحرم الطالب إذا تجاوزت نسبة غيابه "
-            f"{_fmt(limit)}% من محاضرات المقرر"
-            f"{_article(facts.get('limit_article'), results)}."
-        ]
+        article = _article(facts.get("limit_article"), results)
+        lines.append(
+            "يُحرم الطالب من دخول الاختبار النهائي إذا قلت نسبة حضوره عن "
+            f"{_fmt(100 - float(limit))}% من مجموع ساعات الاتصال لجميع أنشطة المقرر، أي إذا "
+            f"زاد غيابه عن {_fmt(limit)}%{article}."
+        )
     for course in facts.get("courses", []):
         lines.append(
-            f"- {course.get('name')} ({course.get('code')}): غياب "
-            f"{_fmt(course.get('absence_percent'))}%، {_absence_state(course)}."
+            f"- {course.get('name')} ({course.get('code')}): "
+            f"{_fmt(course.get('absence_percent'))}% — {_absence_state(course)}."
         )
-    if facts.get("any_over") is False:
-        lines.append("لا يوجد مقرر تجاوز الحد.")
-    elif facts.get("any_over"):
-        lines.append("يوجد مقرر تجاوز الحد.")
+    if limit is not None:
+        lines.extend(_absence_verdict(facts))
     return "\n".join(lines)
+
+
+def _absence_verdict(facts: Mapping[str, Any]) -> list[str]:
+    """Which courses are over the limit, and which are near it without being over."""
+    courses = facts.get("courses", [])
+    over = [course.get("name") for course in courses if course.get("status") == "over"]
+    near = [
+        course.get("name")
+        for course in courses
+        if course.get("near_limit") and course.get("status") != "over"
+    ]
+    if over:
+        return ["تجاوزت الحد في: " + "، ".join(over) + "."]
+    lines = ["لا يوجد مقرر تجاوز الحد."]
+    if near:
+        lines.append(
+            "قريب من الحد (بفارق 5 نقاط أو أقل): " + "، ".join(near) + "."
+        )
+    return lines
 
 
 def _academic_warning_template(facts: Mapping[str, Any], results) -> str:
     gpa = _fmt(facts.get("cumulative_gpa"))
+    scale = _fmt(facts.get("scale"))
+    start = f"معدلك التراكمي {gpa}" + (f" من {scale}" if scale != "—" else "") + "."
     threshold = facts.get("threshold")
     if threshold is None:
         return (
-            f"معدلك التراكمي {gpa}. لا تحدد اللائحة المتاحة الحد الأدنى الذي يقع تحته "
-            "الطالب في الإنذار الأكاديمي، فتحقق من عمادة القبول والتسجيل."
+            start + " لم أجد في اللائحة المتاحة الحد الأدنى للمعدل الذي يُوجب الإنذار، "
+            "لذلك لا أستطيع الحكم. حالة الإنذار تظهر في سجلك الأكاديمي في Edugate، "
+            "ويمكنك سؤال مرشدك الأكاديمي."
         )
     article = _article(facts.get("threshold_article"), results)
-    verdict = "أنت دون الحد" if facts.get("below") else "أنت عند الحد أو أعلى"
-    return f"معدلك التراكمي {gpa}، والحد {_fmt(threshold)}{article}، و{verdict}."
+    verdict = "أنت تحت الحد" if facts.get("below") else "أنت عند الحد أو أعلى منه"
+    return f"{start} الحد الأدنى للإنذار {_fmt(threshold)}{article}، و{verdict}."
 
 
 def _gpa_target_template(facts: Mapping[str, Any], results) -> str:
     if facts.get("target") is None:
         return "لم أحدد المعدل المستهدف من سؤالك، فاذكره لأحسب المتوسط المطلوب."
+    scale = _fmt(facts.get("scale"))
     lines = [
-        f"معدلك التراكمي {_fmt(facts.get('current_gpa'))} من "
-        f"{_fmt(facts.get('scale'))} بعد {_fmt(facts.get('earned_hours'))} ساعة."
+        f"معدلك التراكمي {_fmt(facts.get('current_gpa'))} من {scale} بعد "
+        f"{_fmt(facts.get('earned_hours'))} ساعة."
     ]
     for entry in facts.get("required_average", []):
         line = (
@@ -655,10 +701,10 @@ def _gpa_target_template(facts: Mapping[str, Any], results) -> str:
             f"{_fmt(entry['required_average'])}"
         )
         if entry.get("impossible"):
-            line += f"، وهو أعلى من المقياس {_fmt(facts.get('scale'))}"
+            line += f"، وهو أعلى من المقياس {scale}، فالمعدل المستهدف غير ممكن في هذا العدد من الساعات"
         lines.append(line + ".")
-    if facts.get("target_possible") is False:
-        lines.append("الهدف غير ممكن بهذا العدد من الساعات.")
+    if facts.get("target_possible") is False and not facts.get("required_average"):
+        lines.append("المعدل المستهدف غير ممكن بهذا العدد من الساعات.")
     return "\n".join(lines)
 
 
@@ -676,14 +722,15 @@ def _graduation_template(facts: Mapping[str, Any], results) -> str:
         )
         if status == "within":
             lines.append(
-                f"الحد الأعلى للعبء الدراسي {_fmt(load)} ساعة{article}، "
-                "فتتخرج في فصل واحد."
+                f"الحد الأعلى للعبء الدراسي {_fmt(load)} ساعة{article}، فيمكن تسجيلها في "
+                "فصل واحد، بشرط المتطلبات السابقة."
             )
         elif status == "needs_exception":
             lines.append(
                 f"الحد الأعلى للعبء الدراسي {_fmt(load)} ساعة{article}، ولعمادة شؤون "
                 f"القبول والتسجيل رفعه إلى {_fmt(exception)} وحدة دراسية"
-                f"{exception_article}، فتتخرج في فصل واحد بموافقتها."
+                f"{exception_article}، فيمكن تسجيل الساعات المتبقية في فصل واحد بموافقتها، "
+                "بشرط ألا تمنع المتطلبات السابقة ذلك."
             )
         elif status == "over":
             lines.append(
@@ -693,11 +740,19 @@ def _graduation_template(facts: Mapping[str, Any], results) -> str:
             )
         else:
             lines.append(f"الحد الأعلى للعبء الدراسي {_fmt(load)} ساعة{article}.")
+    if facts.get("sequence_pairs") and status in ("within", "needs_exception"):
+        lines.append(
+            "تنبيه: وجود مقررين متتابعين قد يجعل التخرج في فصل واحد غير ممكن حتى مع "
+            "الموافقة."
+        )
+    for pair in facts.get("sequence_pairs", []):
+        lines.append(
+            f"- {pair['first']} و{pair['second']} كلاهما متبقٍ، وقد يتطلب الثاني "
+            "إنهاء الأول أولاً؛ تأكد من المتطلبات السابقة في خطتك."
+        )
     mandatory = facts.get("mandatory_courses") or []
     if mandatory:
         lines.append("- المقررات الإلزامية المتبقية: " + "، ".join(mandatory) + ".")
-    for pair in facts.get("sequence_pairs", []):
-        lines.append(f"- {pair['first']} ثم {pair['second']}.")
     return "\n".join(lines)
 
 
@@ -713,27 +768,33 @@ def _exam_conflicts_template(facts: Mapping[str, Any], results) -> str:
     else:
         lines = ["لا يوجد تعارض بين مواعيد اختباراتك النهائية."]
     if facts.get("undated_count"):
-        lines.append(f"اختبار بلا تاريخ: {facts['undated_count']}.")
+        lines.append(
+            f"اختبار بلا تاريخ بعد: {facts['undated_count']}، فتحقق من موعده لاحقًا."
+        )
     return "\n".join(lines)
 
 
 def _plan_week_template(facts: Mapping[str, Any], results) -> str:
     lines = [f"خطتك من {facts.get('from')} إلى {facts.get('to')}:"]
-    assignments = facts.get("assignments") or []
-    if assignments:
-        lines.append("- الواجبات المستحقة:")
-        lines += [
-            f"  - {item.get('title')} ({item.get('course')}) — {item.get('due_at')}"
-            for item in assignments
-        ]
-    else:
-        lines.append("- لا واجبات مستحقة.")
-    for day in facts.get("classes", []):
-        slots = "، ".join(
-            f"{slot.get('start')}-{slot.get('end')} {slot.get('name')}"
-            for slot in day.get("slots", [])
-        )
-        lines.append(f"- {day.get('day')}: {slots}")
+    for day in facts.get("days", []):
+        lines.append(f"- {day.get('day')} {day.get('date')}:")
+        for slot in day.get("classes", []):
+            lines.append(
+                f"  - محاضرة: {slot.get('name')} ({slot.get('code')}) "
+                f"{slot.get('start')}-{slot.get('end')}"
+            )
+        for item in day.get("due", []):
+            lines.append(
+                f"  - مستحق: {item.get('title')} ({item.get('course')}) — "
+                f"التسليم {item.get('time')}"
+            )
+            for block in item.get("free_blocks", []):
+                lines.append(
+                    f"    فراغ قبل التسليم: {block.get('from')}-{block.get('to')} "
+                    f"({block.get('minutes')} دقيقة)"
+                )
+        if not day.get("classes") and not day.get("due"):
+            lines.append("  - لا محاضرات ولا واجبات مستحقة.")
     return "\n".join(lines)
 
 
@@ -753,51 +814,120 @@ def _english(kind: str, facts: Mapping[str, Any]) -> str:
         limit = facts.get("limit_percent")
         if limit is None:
             return "The available regulation states no absence limit."
-        return (
-            f"A student is barred once absences exceed {_fmt(limit)}% of a course's "
-            "lectures; your highest is "
-            f"{_fmt(facts.get('max_percent'))}%."
+        article = facts.get("limit_article")
+        article_text = f" (Article {article})" if isinstance(article, int) else ""
+        lines = [
+            "A student is barred from the final exam if attendance falls below "
+            f"{_fmt(100 - float(limit))}% of the course's total contact hours across all "
+            f"its activities, i.e. more than {_fmt(limit)}% absence{article_text}."
+        ]
+        lines += [
+            f"- {course.get('name')} ({course.get('code')}): "
+            f"{_fmt(course.get('absence_percent'))}% — "
+            + (
+                f"{_fmt(abs(course['margin_percent']))} points over the limit."
+                if course.get("status") == "over"
+                else f"{_fmt(course.get('margin_percent'))}% left before the limit."
+            )
+            for course in facts.get("courses", [])
+        ]
+        lines.append(
+            "No course is over the limit."
+            if facts.get("any_over") is False
+            else "At least one course is over the limit."
         )
+        return "\n".join(lines)
     if kind == "academic_warning":
+        gpa = f"Your cumulative GPA is {_fmt(facts.get('cumulative_gpa'))}"
+        scale = facts.get("scale")
+        if scale is not None:
+            gpa += f" out of {_fmt(scale)}"
         threshold = facts.get("threshold")
         if threshold is None:
             return (
-                f"Your cumulative GPA is {_fmt(facts.get('cumulative_gpa'))}. The "
-                "available regulation states no minimum for academic warning."
+                gpa + ". The available regulation states no minimum for academic warning, "
+                "so I cannot say either way; your record in Edugate shows your standing, and "
+                "your academic advisor can confirm it."
             )
-        return (
-            f"Your cumulative GPA is {_fmt(facts.get('cumulative_gpa'))} against a "
-            f"minimum of {_fmt(threshold)}."
-        )
+        verdict = "below it" if facts.get("below") else "at or above it"
+        return f"{gpa}, against a minimum of {_fmt(threshold)}, and you are {verdict}."
     if kind == "gpa_target":
         entries = facts.get("required_average", [])
         if not entries:
             return "State the GPA you are aiming for and I will work out the average."
-        return "To reach " + _fmt(facts.get("target")) + ": " + "; ".join(
-            f"{entry['next_hours']} hours need {_fmt(entry['required_average'])}"
-            for entry in entries
-        ) + "."
+        lines = ["To reach " + _fmt(facts.get("target")) + ":"]
+        for entry in entries:
+            line = f"- over {entry['next_hours']} hours you need an average of {_fmt(entry['required_average'])}"
+            if entry.get("impossible"):
+                line += f", which is above the {_fmt(facts.get('scale'))}-point scale, so the target is out of reach in that many hours"
+            lines.append(line + ".")
+        return "\n".join(lines)
     if kind == "graduation":
-        if facts.get("load_status") == "needs_exception":
-            return (
-                f"{_fmt(facts.get('remaining_hours'))} hours remain: above the "
-                f"{_fmt(facts.get('max_term_load'))}-hour maximum, but within the "
-                f"{_fmt(facts.get('max_term_load_exception'))} hours the Deanship of "
-                "Admission and Registration may approve (article 24)."
+        lines = [f"{_fmt(facts.get('remaining_hours'))} hours remain."]
+        status = facts.get("load_status")
+        if status == "within":
+            lines.append(
+                f"The maximum term load is {_fmt(facts.get('max_term_load'))} hours, so the "
+                "remaining hours can be taken in one term, subject to the prerequisites."
             )
-        return (
-            f"{_fmt(facts.get('remaining_hours'))} hours remain, and the maximum "
-            f"term load is {_fmt(facts.get('max_term_load'))}."
-        )
+        elif status == "needs_exception":
+            lines.append(
+                f"Above the {_fmt(facts.get('max_term_load'))}-hour maximum, but within the "
+                f"{_fmt(facts.get('max_term_load_exception'))} hours the Deanship of "
+                "Admission and Registration may approve, so the remaining hours can be taken in "
+                "one term with its approval, provided the prerequisites allow it."
+            )
+        elif status == "over":
+            lines.append(
+                f"The load does not exceed the {_fmt(facts.get('max_term_load_exception'))} "
+                "hours the Deanship may approve, so one term does not suffice."
+            )
+        else:
+            lines.append(
+                f"The maximum term load is {_fmt(facts.get('max_term_load'))} hours."
+            )
+        if facts.get("sequence_pairs") and status in ("within", "needs_exception"):
+            lines.append(
+                "Note: with two courses in sequence still to take, graduating in one term may "
+                "not be possible even with that approval."
+            )
+        for pair in facts.get("sequence_pairs", []):
+            lines.append(
+                f"- {pair['first']} and {pair['second']} are both still to take, and the "
+                "second may require the first first; check the prerequisites in your plan."
+            )
+        return "\n".join(lines)
     if kind == "exam_conflicts":
-        if facts.get("has_conflicts"):
-            return f"{len(facts.get('conflicts', []))} exam clash(es) found."
-        return "No exam clashes found."
-    if kind == "plan_week":
-        return (
-            f"{len(facts.get('assignments', []))} assignment(s) due between "
-            f"{facts.get('from')} and {facts.get('to')}."
+        if not facts.get("has_conflicts"):
+            return "No exam clashes found."
+        return "Exam clashes:\n" + "\n".join(
+            f"- {conflict['date']} at {conflict['time']}: "
+            + ", ".join(conflict["courses"])
+            for conflict in facts.get("conflicts", [])
         )
+    if kind == "plan_week":
+        lines = [f"Your plan from {facts.get('from_en')} to {facts.get('to_en')}:"]
+        for day in facts.get("days", []):
+            if not day.get("classes") and not day.get("due"):
+                lines.append(f"- {day.get('day_en')} {day.get('date_en')}: nothing due.")
+                continue
+            lines.append(f"- {day.get('day_en')} {day.get('date_en')}:")
+            for slot in day.get("classes", []):
+                lines.append(
+                    f"  - class: {slot.get('name')} ({slot.get('code')}) "
+                    f"{slot.get('start_en')}-{slot.get('end_en')}"
+                )
+            for item in day.get("due", []):
+                lines.append(
+                    f"  - due: {item.get('title')} ({item.get('course')}) at "
+                    f"{item.get('time_en')}"
+                )
+                for block in item.get("free_blocks", []):
+                    lines.append(
+                        f"    free before it: {block.get('from_en')}-{block.get('to_en')} "
+                        f"({block.get('minutes')} minutes)"
+                    )
+        return "\n".join(lines)
     return ""
 
 
@@ -807,10 +937,12 @@ def template_answer(
     results: Sequence[SearchResult] = (),
     needs_regulation: bool = True,
 ) -> str:
-    """The answer written from the computed facts, when the model's cannot be used.
+    """The answer written from the computed facts.
 
-    Every number in it is a fact, a retrieved article's number or nothing at all, so the
-    student still gets the values and never a number the model invented.
+    It is the whole answer for a verdict kind (answer_from_facts) and the replacement for a
+    reply that states a number the facts do not carry. Every number in it is a fact, a retrieved
+    article's number or nothing at all, so the student still gets the values and never a number
+    the model invented.
     """
     kind = facts.get("kind")
     text = _TEMPLATES.get(kind, _absences_template)(facts, results)
@@ -819,6 +951,113 @@ def template_answer(
     if _LATIN.search(question or ""):
         text += "\n\n" + _english(kind, facts)
     return text
+
+
+# The kinds whose answer is a verdict on the student's own values. Their numbers are computed
+# and their sentences are fixed, so they are answered from the template and the model is never
+# called: there is nothing for it to phrase and nothing it could get wrong.
+VERDICT_KINDS = (
+    "absences",
+    "academic_warning",
+    "graduation",
+    "gpa_target",
+    "exam_conflicts",
+)
+
+
+def is_verdict_kind(kind: str | None) -> bool:
+    """Whether this kind is answered from the template alone, with no model call."""
+    return kind in VERDICT_KINDS
+
+
+def stated_articles(kind: str, facts: Mapping[str, Any]) -> list[int]:
+    """The article numbers the kind's template states, in the order it states them.
+
+    A template names the article of each rule it applies and no other, so a kind with no rule in
+    reasoning.toml (a GPA target, an exam clash) states none and cites nothing.
+    """
+    numbers: list[Any] = []
+    if kind == "absences":
+        numbers = [facts.get("limit_article")]
+    elif kind == "academic_warning":
+        if facts.get("threshold") is not None:
+            numbers = [facts.get("threshold_article")]
+    elif kind == "graduation":
+        numbers = [facts.get("max_term_load_article")]
+        if facts.get("load_status") in ("needs_exception", "over"):
+            numbers.append(facts.get("max_term_load_exception_article"))
+    stated: list[int] = []
+    for number in numbers:
+        if isinstance(number, int) and number not in stated:
+            stated.append(number)
+    return stated
+
+
+def citations_for_facts(
+    kind: str,
+    facts: Mapping[str, Any],
+    results: Sequence[SearchResult],
+    source: SourceRef | None = None,
+) -> tuple[Citation, ...]:
+    """One citation per article the template states, retrieved or not.
+
+    A retrieved article is cited from its own chunk, title and URL included. One that was not
+    retrieved is cited from the regulation's title and URL in sources.toml, so the number the answer
+    names always leads to the document; with no source declared it is left out rather than guessed at.
+    """
+    retrieved = {
+        result.article_number: result
+        for result in results
+        if result.article_number is not None
+    }
+    citations: list[Citation] = []
+    for number in stated_articles(kind, facts):
+        result = retrieved.get(number)
+        if result is not None:
+            citations.append(
+                Citation(
+                    title=result.chunk.title,
+                    article=number,
+                    url=result.chunk.url,
+                )
+            )
+        elif source is not None:
+            citations.append(Citation(title=source.title, article=number, url=source.url))
+    return tuple(citations)
+
+
+def answer_from_facts(
+    kind: str,
+    question: str,
+    *,
+    retriever: Retriever,
+    facts: Mapping[str, Any],
+    needs_regulation: bool = True,
+    k: int = DEFAULT_K,
+    extra_queries: Sequence[str] = (),
+    source: SourceRef | None = None,
+) -> Answer:
+    """The template answer for a verdict kind: retrieval for the citations, and no model call.
+
+    The numbers are computed (app/facts.py) and the sentences are fixed, so the student reads the
+    same answer every time and no model can add a number of its own. Retrieval still runs, with the
+    kind's fixed queries, because a cited article's title and URL come from the chunk when it was
+    retrieved; an article that was not is cited from the source config instead.
+    """
+    question = (question or "").strip()
+    if not question:
+        raise ValueError("question is empty")
+    results = retrieve_articles(question, retriever, k, extra_queries)
+    text = template_answer(facts, question, results, needs_regulation)
+    citations = (
+        citations_for_facts(kind, facts, results, source) if needs_regulation else ()
+    )
+    LOGGER.info(
+        "answered a %s question from the template with %d citation(s)",
+        kind,
+        len(citations),
+    )
+    return Answer(answer=text, citations=citations, used_fallback=True, cost_usd=0.0)
 
 
 def _add_cost(cost: float | None, extra: float | None) -> float | None:
@@ -860,6 +1099,7 @@ def _facts_answer(
     facts: Mapping[str, Any],
     student_data: Mapping[str, Any] | None,
     needs_regulation: bool,
+    source: SourceRef | None = None,
 ) -> Answer:
     """The model's answer when it states only the facts; else the template.
 
@@ -897,7 +1137,11 @@ def _facts_answer(
             )
     LOGGER.info("number_guard: template")
     text = template_answer(facts, question, results, needs_regulation)
-    citations = select_citations(text, results) if needs_regulation else ()
+    citations = (
+        citations_for_facts(str(facts.get("kind") or ""), facts, results, source)
+        if needs_regulation
+        else ()
+    )
     return Answer(
         answer=text, citations=citations, used_fallback=True, cost_usd=cost
     )
@@ -914,6 +1158,7 @@ def answer_question(
     facts: Mapping[str, Any] | None = None,
     extra_queries: Sequence[str] = (),
     needs_regulation: bool = True,
+    source: SourceRef | None = None,
 ) -> Answer:
     """Retrieve, answer from the retrieved articles only, and cite them.
 
@@ -921,7 +1166,8 @@ def answer_question(
     over them; the rules still come from the retrieved articles only. With `facts`, the
     numbers computed from those records are in the prompt too, and the answer may state no
     number the facts do not carry. `extra_queries` are the fixed queries of the reasoning
-    kind; `needs_regulation` is False for a kind the regulation does not answer.
+    kind; `needs_regulation` is False for a kind the regulation does not answer; `source` is the
+    regulation's title and URL, for citing an article the template states but retrieval missed.
 
     The fallback is returned when nothing citable was retrieved, when the model says
     the articles do not support an answer, or when its reply cannot be parsed. A
@@ -959,6 +1205,7 @@ def answer_question(
             facts=facts,
             student_data=student_data,
             needs_regulation=needs_regulation,
+            source=source,
         )
 
     if parsed is None or not parsed.supported or not parsed.answer:

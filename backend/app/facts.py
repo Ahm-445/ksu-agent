@@ -32,6 +32,30 @@ RIYADH = timezone(timedelta(hours=3))
 REQUIRED_AVERAGE_HORIZONS = (12, 15, 18)
 WEEK_DAYS = 7
 
+# A course whose absence is within this many points of the limit is called "قريب" in the
+# answer. It is a reading of the numbers, not a rule: no article states it.
+NEAR_LIMIT_PERCENT = 5.0
+
+# A free block shorter than this is not worth naming in a week plan.
+MIN_FREE_BLOCK_MINUTES = 30
+
+# The earliest hour a free block is offered from: a class that starts at 08:00 leaves nothing.
+DAY_START_MINUTES = 8 * 60
+
+_MONTHS_AR = (
+    "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+    "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
+)
+_MONTHS_EN = (
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)
+# date.weekday(): Monday is 0, so the list starts there.
+_WEEKDAYS_AR = (
+    "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد",
+)
+_WEEKDAYS_EN = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
 # 1 = Sunday ... 7 = Saturday, as the schedule tool numbers its days.
 DAY_NAMES = {
     1: "الأحد",
@@ -146,6 +170,7 @@ def absences_facts(
             "limit_percent": limit,
             "margin_percent": None,
             "status": None,
+            "near_limit": None,
         }
         if limit is not None and percent is not None:
             margin = round(limit - percent, 2)
@@ -153,6 +178,7 @@ def absences_facts(
             entry["status"] = (
                 "below" if margin > 0 else "at" if margin == 0 else "over"
             )
+            entry["near_limit"] = 0 <= margin <= NEAR_LIMIT_PERCENT
         courses.append(entry)
 
     percents = [
@@ -181,12 +207,15 @@ def academic_warning_facts(
     data: Mapping[str, Any], thresholds: Mapping[str, Threshold]
 ) -> dict[str, Any]:
     """The student's GPA against the warning threshold, when the regulation states one."""
-    gpa = parse_number(data.get("get_gpa", {}).get("cumulative_gpa"))
+    gpa_data = data.get("get_gpa", {})
+    gpa = parse_number(gpa_data.get("cumulative_gpa"))
+    scale = parse_number(gpa_data.get("scale"))
     threshold = thresholds.get("warning_gpa")
 
     facts: dict[str, Any] = {
         "kind": "academic_warning",
         "cumulative_gpa": gpa,
+        "scale": scale,
         "threshold": None,
         "threshold_article": None,
         "below": None,
@@ -362,50 +391,159 @@ def exam_conflicts_facts(data: Mapping[str, Any]) -> dict[str, Any]:
 def plan_week_facts(
     data: Mapping[str, Any], now: datetime | None = None
 ) -> dict[str, Any]:
-    """The assignments due in the next seven days and the class slots of each day."""
+    """The next seven days, each with its classes and the assignments due that day.
+
+    A day lists its classes first and then what is due, and every due item carries the free
+    blocks left before its own time, so the answer suggests when to work on it without computing
+    anything. Every time and date is written the way the answer says it, in Arabic and in English;
+    no timestamp of the data's own is kept in the facts.
+    """
     start = now or datetime.now(RIYADH)
-    end = start + timedelta(days=WEEK_DAYS)
+    first_day = start.date()
+    last_day = first_day + timedelta(days=WEEK_DAYS - 1)
 
-    assignments = []
-    for item in data.get("get_assignments", {}).get("items", []) or []:
-        due = _moment(item.get("due_at"))
-        if due is None or not start <= due <= end:
-            continue
-        assignments.append(
-            {
-                "title": item.get("title"),
-                "course": item.get("course"),
-                "due_at": item.get("due_at"),
-            }
-        )
-
-    by_day: dict[int, list[dict[str, Any]]] = {}
+    by_day: dict[int, list[Mapping[str, Any]]] = {}
     for slot in data.get("get_schedule", {}).get("classes", []) or []:
         for day in slot.get("days", []) or []:
-            by_day.setdefault(int(day), []).append(
+            by_day.setdefault(int(day), []).append(slot)
+
+    due_by_date: dict[Any, list[Mapping[str, Any]]] = {}
+    for item in data.get("get_assignments", {}).get("items", []) or []:
+        due = _moment(item.get("due_at"))
+        if due is None or not start <= due or due.date() > last_day:
+            continue
+        due_by_date.setdefault(due.date(), []).append(item)
+
+    days = []
+    for offset in range(WEEK_DAYS):
+        date = first_day + timedelta(days=offset)
+        slots = sorted(
+            by_day.get(date.isoweekday(), []),
+            key=lambda slot: slot.get("start") or "",
+        )
+        classes = [
+            {
+                "code": slot.get("code"),
+                "name": slot.get("name"),
+                "activity": slot.get("activity"),
+                "start": _clock_text(slot.get("start")),
+                "start_en": _clock_text(slot.get("start"), "en"),
+                "end": _clock_text(slot.get("end")),
+                "end_en": _clock_text(slot.get("end"), "en"),
+            }
+            for slot in slots
+        ]
+
+        due = []
+        for item in sorted(
+            due_by_date.get(date, []),
+            key=lambda item: _moment(item.get("due_at")),
+        ):
+            moment = _moment(item.get("due_at"))
+            due.append(
                 {
-                    "code": slot.get("code"),
-                    "name": slot.get("name"),
-                    "activity": slot.get("activity"),
-                    "start": slot.get("start"),
-                    "end": slot.get("end"),
+                    "title": item.get("title"),
+                    "course": item.get("course"),
+                    "time": _clock_text(moment.strftime("%H:%M")),
+                    "time_en": _clock_text(moment.strftime("%H:%M"), "en"),
+                    "free_blocks": _free_blocks(slots, moment),
                 }
             )
 
-    classes = [
-        {
-            "day": DAY_NAMES.get(day, str(day)),
-            "slots": sorted(slots, key=lambda slot: slot["start"] or ""),
-        }
-        for day, slots in sorted(by_day.items())
-    ]
+        days.append(
+            {
+                "day": _weekday_text(date),
+                "day_en": _weekday_text(date, "en"),
+                "date": _date_text(date),
+                "date_en": _date_text(date, "en"),
+                "classes": classes,
+                "due": due,
+            }
+        )
 
     return {
         "kind": "plan_week",
-        "from": start.date().isoformat(),
-        "to": end.date().isoformat(),
-        "assignments": assignments,
-        "classes": classes,
+        "from": _dated_text(first_day),
+        "to": _dated_text(last_day),
+        "from_en": _dated_text(first_day, "en"),
+        "to_en": _dated_text(last_day, "en"),
+        "days": days,
+    }
+
+
+def _clock_text(hhmm: Any, lang: str = "ar") -> str:
+    """A 24-hour "HH:MM" as the answer says it: 12-hour, with ص/م or AM/PM."""
+    minutes = _minutes(hhmm)
+    if minutes is None:
+        return "—"
+    hour, minute = divmod(minutes, 60)
+    clock = f"{hour % 12 or 12}:{minute:02d}"
+    if lang == "ar":
+        return f"{clock} {'ص' if hour < 12 else 'م'}"
+    return f"{clock} {'AM' if hour < 12 else 'PM'}"
+
+
+def _minutes(hhmm: Any) -> int | None:
+    """Minutes since midnight for a 24-hour "HH:MM"; None when it is not one."""
+    if not isinstance(hhmm, str):
+        return None
+    try:
+        hour, minute = (int(part) for part in hhmm.split(":")[:2])
+    except ValueError:
+        return None
+    return hour * 60 + minute
+
+
+def _weekday_text(date, lang: str = "ar") -> str:
+    """The weekday as the answer says it: "السبت" or "Sat"."""
+    return (_WEEKDAYS_AR if lang == "ar" else _WEEKDAYS_EN)[date.weekday()]
+
+
+def _date_text(date, lang: str = "ar") -> str:
+    """The day and month as the answer says them: "21 نوفمبر" or "21 Nov"."""
+    month = (_MONTHS_AR if lang == "ar" else _MONTHS_EN)[date.month - 1]
+    return f"{date.day} {month}"
+
+
+def _dated_text(date, lang: str = "ar") -> str:
+    """A day of the week with its date: "السبت 21 نوفمبر" or "Sat 21 Nov"."""
+    return f"{_weekday_text(date, lang)} {_date_text(date, lang)}"
+
+
+def _free_blocks(
+    classes: Sequence[Mapping[str, Any]], due: datetime
+) -> list[dict[str, Any]]:
+    """The free blocks of one day before a due time, from the gaps between its classes.
+
+    A block starts no earlier than DAY_START_MINUTES, ends at the next class or at the due time,
+    and is kept only when it is at least MIN_FREE_BLOCK_MINUTES long.
+    """
+    until = due.hour * 60 + due.minute
+    blocks: list[dict[str, Any]] = []
+    cursor = DAY_START_MINUTES
+    for slot in classes:
+        start = _minutes(slot.get("start"))
+        end = _minutes(slot.get("end"))
+        if start is None or end is None:
+            continue
+        if start > cursor and start - cursor >= MIN_FREE_BLOCK_MINUTES:
+            blocks.append(_block_text(cursor, start))
+        cursor = max(cursor, end)
+    if until - cursor >= MIN_FREE_BLOCK_MINUTES:
+        blocks.append(_block_text(cursor, until))
+    return blocks
+
+
+def _block_text(start: int, end: int) -> dict[str, Any]:
+    """One free block as the answer says it, in both languages."""
+    clock = f"{start // 60:02d}:{start % 60:02d}"
+    until = f"{end // 60:02d}:{end % 60:02d}"
+    return {
+        "from": _clock_text(clock),
+        "from_en": _clock_text(clock, "en"),
+        "to": _clock_text(until),
+        "to_en": _clock_text(until, "en"),
+        "minutes": end - start,
     }
 
 

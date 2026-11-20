@@ -5,6 +5,8 @@ regulation does not state is null with the reason "not_in_regulation", so the an
 it could not be confirmed instead of inventing a number.
 """
 
+import json
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -59,6 +61,12 @@ def test_an_absence_at_the_limit_is_at_it_and_not_over():
     assert result["courses"][0]["margin_percent"] == 0
 
 
+def test_a_course_within_five_points_of_the_limit_is_near_it():
+    result = facts.absences_facts(absences(21, 11), THRESHOLDS)
+
+    assert [course["near_limit"] for course in result["courses"]] == [True, False]
+
+
 def test_an_absence_over_the_limit_is_over_it():
     result = facts.absences_facts(absences(26.5), THRESHOLDS)
 
@@ -88,6 +96,7 @@ def test_the_warning_threshold_is_not_in_the_regulation():
     result = facts.academic_warning_facts(data, THRESHOLDS)
 
     assert result["cumulative_gpa"] == 4.21
+    assert result["scale"] == 5
     assert result["threshold"] is None
     assert result["below"] is None
     assert result["reason"] == "not_in_regulation"
@@ -385,19 +394,73 @@ def week_data():
 def test_only_the_assignments_due_in_the_next_seven_days_are_facts():
     result = facts.plan_week_facts(week_data(), now=NOW)
 
-    assert [item["title"] for item in result["assignments"]] == ["واجب 3", "كويز"]
-    assert result["from"] == "2026-11-20"
-    assert result["to"] == "2026-11-27"
+    titles = [item["title"] for day in result["days"] for item in day["due"]]
+    assert titles == ["واجب 3", "كويز"]
+    assert result["from"] == "الجمعة 20 نوفمبر"
+    assert result["to"] == "الخميس 26 نوفمبر"
 
 
-def test_the_class_slots_are_grouped_per_day_and_sorted():
+def test_the_week_is_seven_days_from_today():
     result = facts.plan_week_facts(week_data(), now=NOW)
 
-    assert [day["day"] for day in result["classes"]] == ["الأحد", "الثلاثاء"]
-    assert [slot["code"] for slot in result["classes"][0]["slots"]] == [
-        "SWE 444",
-        "SWE 483",
+    assert [day["date"] for day in result["days"]] == [
+        "20 نوفمبر",
+        "21 نوفمبر",
+        "22 نوفمبر",
+        "23 نوفمبر",
+        "24 نوفمبر",
+        "25 نوفمبر",
+        "26 نوفمبر",
     ]
+    assert result["days"][0]["day"] == "الجمعة"
+
+
+def test_a_due_item_sits_under_its_own_day_with_a_readable_time():
+    result = facts.plan_week_facts(week_data(), now=NOW)
+
+    saturday = result["days"][1]
+    assert saturday["day"] == "السبت"
+    assert [item["title"] for item in saturday["due"]] == ["واجب 3"]
+    assert saturday["due"][0]["time"] == "11:59 م"
+    assert saturday["due"][0]["time_en"] == "11:59 PM"
+
+
+def test_the_class_slots_are_listed_per_day_and_sorted():
+    result = facts.plan_week_facts(week_data(), now=NOW)
+
+    monday = result["days"][3]
+    assert monday["day"] == "الاثنين"
+    assert [slot["code"] for slot in monday["classes"]] == ["SWE 444", "SWE 483"]
+    assert monday["classes"][0]["start"] == "8:00 ص"
+    assert monday["classes"][0]["end_en"] == "8:50 AM"
+
+
+def test_a_due_item_carries_the_free_blocks_before_it():
+    """Wednesday's class runs 11:00-11:50, and the quiz is due at 12:00."""
+    result = facts.plan_week_facts(week_data(), now=NOW)
+
+    wednesday = result["days"][5]
+    quiz = wednesday["due"][0]
+    assert quiz["title"] == "كويز"
+    assert [block["minutes"] for block in quiz["free_blocks"]] == [180]
+    assert quiz["free_blocks"][0]["from"] == "8:00 ص"
+    assert quiz["free_blocks"][0]["to"] == "11:00 ص"
+
+
+def test_a_day_with_nothing_in_it_has_no_classes_and_no_due_items():
+    result = facts.plan_week_facts(week_data(), now=NOW)
+
+    friday = result["days"][0]
+    assert friday["classes"] == []
+    assert friday["due"] == []
+
+
+def test_no_iso_timestamp_survives_into_the_facts():
+    """The answer says "السبت 21 نوفمبر، 11:59 م", never the raw timestamp."""
+    result = facts.plan_week_facts(week_data(), now=NOW)
+
+    assert "2026-11-21T23:59:00+03:00" not in json.dumps(result, ensure_ascii=False)
+    assert not re.search(r"\d{4}-\d{2}-\d{2}", json.dumps(result, ensure_ascii=False))
 
 
 def test_a_plan_week_has_no_verdict():
