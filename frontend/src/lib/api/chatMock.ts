@@ -7,6 +7,9 @@ import type {
 
 const DELAY_MS = 1200;
 
+// A placeholder: the real token is signed by the backend and only it can check one.
+const MOCK_ROUTE_TOKEN = "mock.route-token";
+
 const CITATION = {
   title:
     "KSU Regulations of Study and Examinations — undergraduate, with executive rules (v2)",
@@ -74,6 +77,7 @@ export async function mockSendMessage({
       ok: true,
       kind: "reason",
       tools: ["get_plan_progress", "get_gpa"],
+      routeToken: MOCK_ROUTE_TOKEN,
     };
   }
 

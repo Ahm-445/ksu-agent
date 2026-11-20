@@ -18,10 +18,15 @@ export type ConsentTool = {
 
 export type ConsentRequest = {
   question: string;
+  /** The token `/chat` issued for this question, sent back with the values, once. */
+  routeToken: string;
   tools: ConsentTool[];
   /** The body's `data`: one entry per tool, in the order the tools were read. */
   data: Record<string, ToolData>;
 };
+
+/** What the card itself decides: everything in the request but the token. */
+export type ConsentContents = Omit<ConsentRequest, "routeToken">;
 
 // The array field each tool's value lists, so the card can count the items without
 // knowing the shape of every tool.
@@ -65,7 +70,7 @@ export function buildConsent(
   question: string,
   results: { tool: string; data: ToolData }[],
   t: Dictionary,
-): ConsentRequest {
+): ConsentContents {
   return {
     question,
     tools: results.map(({ tool, data }) => ({
@@ -92,13 +97,13 @@ export type ConsentOutcome =
  */
 export async function readForConsent(
   question: string,
-  tools: string[],
+  reply: { tools: string[]; routeToken: string },
   t: Dictionary,
   run: (tool: string) => Promise<ToolResult>,
 ): Promise<ConsentOutcome> {
   const read: { tool: string; data: ToolData }[] = [];
 
-  for (const tool of tools) {
+  for (const tool of reply.tools) {
     const result = await run(tool);
 
     if (!result.ok) {
@@ -108,5 +113,11 @@ export async function readForConsent(
     read.push({ tool, data: result.data });
   }
 
-  return { ok: true, request: buildConsent(question, read, t) };
+  return {
+    ok: true,
+    request: {
+      ...buildConsent(question, read, t),
+      routeToken: reply.routeToken,
+    },
+  };
 }

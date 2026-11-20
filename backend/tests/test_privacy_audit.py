@@ -19,10 +19,10 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import answer
-from app import main
+from app import main, route_token
 from app.auth.routes import require_user
 from app.auth.store import User
-from app.tools import REASONING_TOOLS
+from app.tools import REASONING_TOOLS, detect_reasoning_kind
 from app.with_data import TOOL_SCHEMAS
 
 from test_answer import (
@@ -196,6 +196,19 @@ SIGNED_IN = User(
     email_verified=True,
 )
 
+
+def _with_token(body: dict, kind: str) -> dict:
+    """The body as the website sends it: its values, and the token `/chat` issued for its question."""
+    return {
+        **body,
+        "route_token": route_token.issue(
+            user_id=SIGNED_IN.id,
+            message=body.get("message", ""),
+            kind=kind,
+            tools=REASONING_TOOLS[kind],
+        ),
+    }
+
 # Every logger a request can reach, the root logger included. uvicorn's ServerErrorMiddleware logs
 # an unhandled exception's traceback on "uvicorn.error", which is why that one is captured too.
 AUDITED_LOGGERS = (
@@ -335,13 +348,16 @@ def test_a_reason_reply_never_leaks_the_question(api):
         response = client.post("/chat", json={"message": question})
 
     assert response.status_code == 200
-    assert response.json() == {
-        "type": "reason",
-        "tools": ["get_plan_progress", "get_gpa"],
-    }
+    body = response.json()
+    assert body["type"] == "reason"
+    assert body["tools"] == ["get_plan_progress", "get_gpa"]
+    # The token is signed over a hash of the question, so the reply carries no text of it.
+    assert body["route_token"]
+    assert QUESTION_SENTINEL not in body["route_token"]
     assert_no_sentinel(response.text, "the reason reply")
     assert_no_sentinel(logs.text, "the log")
     assert question not in logs.text
+    assert body["route_token"] not in logs.text
 
 
 def test_a_regulation_answer_never_leaks_the_question(api):
@@ -377,11 +393,12 @@ def test_a_kind_answers_from_its_values_and_never_logs_them(api, kind, message, 
     data = {tool: TOOL_DATA[tool] for tool in tools}
     question = f"{message} {QUESTION_SENTINEL}"
 
-    assert main.detect_reasoning_kind(question) == kind
+    assert detect_reasoning_kind(question) == kind
 
     with AllLogs() as logs:
         response = client.post(
-            "/chat/with-data", json={"message": question, "data": data}
+            "/chat/with-data",
+            json=_with_token({"message": question, "data": data}, kind),
         )
 
     assert response.status_code == 200
@@ -398,7 +415,13 @@ def test_the_answer_itself_is_the_only_place_a_value_may_appear(api):
     with AllLogs() as logs:
         response = client.post(
             "/chat/with-data",
-            json={"message": KINDS[1][1], "data": {"get_absences": TOOL_DATA["get_absences"]}},
+            json=_with_token(
+                {
+                    "message": KINDS[1][1],
+                    "data": {"get_absences": TOOL_DATA["get_absences"]},
+                },
+                KINDS[1][0],
+            ),
         )
 
     assert response.status_code == 200
@@ -462,7 +485,7 @@ def test_a_rejected_body_is_a_code_and_never_the_body(api, body, code):
     client = api()
 
     with AllLogs() as logs:
-        response = client.post("/chat/with-data", json=body)
+        response = client.post("/chat/with-data", json=_with_token(body, KINDS[0][0]))
 
     assert response.status_code == 422
     assert response.json() == {"detail": code}
@@ -477,7 +500,7 @@ def test_a_data_field_of_the_wrong_shape_is_a_code_not_the_value(api):
     with AllLogs() as logs:
         response = client.post(
             "/chat/with-data",
-            json={"message": KINDS[0][1], "data": SENT["gpa"]},
+            json=_with_token({"message": KINDS[0][1], "data": SENT["gpa"]}, KINDS[0][0]),
         )
 
     assert response.status_code == 422
@@ -509,7 +532,8 @@ def test_a_body_over_twenty_kilobytes_is_a_code_and_never_the_body(api):
 
     with AllLogs() as logs:
         response = client.post(
-            "/chat/with-data", json={"message": KINDS[0][1], "data": data}
+            "/chat/with-data",
+            json=_with_token({"message": KINDS[0][1], "data": data}, KINDS[0][0]),
         )
 
     assert response.status_code == 422
@@ -530,7 +554,13 @@ def test_with_data_without_a_session_is_401_and_carries_nothing(api):
         with AllLogs() as logs:
             response = client.post(
                 "/chat/with-data",
-                json={"message": KINDS[1][1], "data": {"get_absences": TOOL_DATA["get_absences"]}},
+                json=_with_token(
+                    {
+                        "message": KINDS[1][1],
+                        "data": {"get_absences": TOOL_DATA["get_absences"]},
+                    },
+                    KINDS[1][0],
+                ),
             )
     finally:
         main.app.dependency_overrides[require_user] = lambda: SIGNED_IN
@@ -549,7 +579,8 @@ def test_a_model_failure_is_a_503_that_carries_no_value(api):
 
     with AllLogs() as logs:
         response = client.post(
-            "/chat/with-data", json={"message": KINDS[5][1], "data": data}
+            "/chat/with-data",
+            json=_with_token({"message": KINDS[5][1], "data": data}, KINDS[5][0]),
         )
 
     assert response.status_code == 503
@@ -568,10 +599,16 @@ def test_an_unexpected_exception_is_a_503_that_carries_no_value(api, monkeypatch
     with AllLogs() as logs:
         response = client.post(
             "/chat/with-data",
-            json={"message": KINDS[5][1], "data": {
-                "get_assignments": TOOL_DATA["get_assignments"],
-                "get_schedule": TOOL_DATA["get_schedule"],
-            }},
+            json=_with_token(
+                {
+                    "message": KINDS[5][1],
+                    "data": {
+                        "get_assignments": TOOL_DATA["get_assignments"],
+                        "get_schedule": TOOL_DATA["get_schedule"],
+                    },
+                },
+                KINDS[5][0],
+            ),
         )
 
     assert response.status_code == 503
@@ -596,7 +633,13 @@ def test_an_unexpected_exception_while_computing_the_facts_carries_no_value(
     with AllLogs() as logs:
         response = client.post(
             "/chat/with-data",
-            json={"message": KINDS[1][1], "data": {"get_absences": TOOL_DATA["get_absences"]}},
+            json=_with_token(
+                {
+                    "message": KINDS[1][1],
+                    "data": {"get_absences": TOOL_DATA["get_absences"]},
+                },
+                KINDS[1][0],
+            ),
         )
 
     assert response.status_code == 503

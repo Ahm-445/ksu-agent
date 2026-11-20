@@ -38,6 +38,8 @@ const PLAN: PlanProgressData = {
 const AR = dictionary.ar;
 const EN = dictionary.en;
 
+const TOKEN = "signed.route-token";
+
 function reading(values: Record<string, unknown>) {
   return vi.fn(
     async (tool: string): Promise<ToolResult> => ({
@@ -105,7 +107,7 @@ describe("reading the values for the card", () => {
 
     const outcome = await readForConsent(
       "هل أقدر أتخرج الفصل القادم؟",
-      ["get_plan_progress", "get_gpa"],
+      { tools: ["get_plan_progress", "get_gpa"], routeToken: TOKEN },
       AR,
       run,
     );
@@ -124,6 +126,8 @@ describe("reading the values for the card", () => {
         get_plan_progress: PLAN,
         get_gpa: GPA,
       });
+      // The token the reply carried is what the approved body is sent back with.
+      expect(outcome.request.routeToken).toBe(TOKEN);
     }
   });
 
@@ -138,7 +142,7 @@ describe("reading the values for the card", () => {
 
     const outcome = await readForConsent(
       "سؤال",
-      ["get_gpa", "get_plan_progress"],
+      { tools: ["get_gpa", "get_plan_progress"], routeToken: TOKEN },
       AR,
       run,
     );

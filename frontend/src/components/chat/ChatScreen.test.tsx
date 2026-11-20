@@ -87,6 +87,7 @@ beforeEach(() => {
     ok: true,
     kind: "reason",
     tools: ["get_gpa", "get_plan_progress"],
+    routeToken: "signed.route-token",
   });
 
   (runTool as Mock).mockImplementation(async (tool: string) => ({
@@ -138,11 +139,13 @@ describe("a reasoning question", () => {
     await waitFor(() => expect(sendWithData).toHaveBeenCalledTimes(1));
 
     const [sent] = (sendWithData as Mock).mock.calls[0] as [
-      { message: string; data: unknown },
+      { message: string; data: unknown; routeToken: string },
     ];
 
     expect(sent.message).toBe(QUESTION);
     expect(sent.data).toEqual(DATA);
+    // The token /chat issued for this question goes back with it, unchanged.
+    expect(sent.routeToken).toBe("signed.route-token");
     expect(shown).toBe(JSON.stringify(sent.data, null, 2));
 
     expect(

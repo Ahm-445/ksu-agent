@@ -22,7 +22,13 @@ export type SendMessageResult =
       basis: AnswerBasis;
     }
   | { ok: true; kind: "tool"; tool: string }
-  | { ok: true; kind: "reason"; tools: string[] }
+  | {
+      ok: true;
+      kind: "reason";
+      tools: string[];
+      /** Binds this question to its route; sent back once with the approved values. */
+      routeToken: string;
+    }
   | { ok: false; error: ChatErrorKind };
 
 export type SendMessageInput = {
@@ -34,6 +40,8 @@ export type SendMessageInput = {
 export type SendWithDataInput = SendMessageInput & {
   /** One entry per tool the reply named, holding exactly the contract's fields. */
   data: Record<string, unknown>;
+  /** The token the reasoning reply carried, unchanged and unread by the browser. */
+  routeToken: string;
 };
 
 const MODE = process.env.NEXT_PUBLIC_CHAT_MODE === "api" ? "api" : "mock";
@@ -130,11 +138,11 @@ function parseTool(body: Record<string, unknown>): SendMessageResult | null {
   return { ok: true, kind: "tool", tool };
 }
 
-/** A `reason` reply names one to three tools, and nothing else. */
+/** A `reason` reply names one to three tools, and the token that binds them to the question. */
 const MAX_REASON_TOOLS = 3;
 
 function parseReason(body: Record<string, unknown>): SendMessageResult | null {
-  const { tools } = body;
+  const { tools, route_token: routeToken } = body;
 
   if (
     !Array.isArray(tools) ||
@@ -145,7 +153,13 @@ function parseReason(body: Record<string, unknown>): SendMessageResult | null {
     return null;
   }
 
-  return { ok: true, kind: "reason", tools };
+  // Without the token the approved values could not be sent back, so a reply that lacks it
+  // is not a reasoning reply the website can act on.
+  if (typeof routeToken !== "string" || !routeToken) {
+    return null;
+  }
+
+  return { ok: true, kind: "reason", tools, routeToken };
 }
 
 /** A body without `type` is an answer, as the contract says. */
@@ -257,16 +271,17 @@ export async function sendWithData({
   message,
   sessionId,
   data,
+  routeToken,
   signal,
 }: SendWithDataInput): Promise<SendMessageResult> {
   if (MODE === "mock") {
     const { mockSendWithData } = await import("./chatMock");
-    return mockSendWithData({ message, sessionId, data, signal });
+    return mockSendWithData({ message, sessionId, data, routeToken, signal });
   }
 
   return post(
     "/chat/with-data",
-    { message, session_id: sessionId, data },
+    { message, session_id: sessionId, data, route_token: routeToken },
     signal,
   );
 }

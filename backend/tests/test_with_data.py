@@ -14,9 +14,10 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import answer
-from app import main
+from app import main, route_token
 from app.auth.routes import require_user
 from app.auth.store import User
+from app.tools import REASONING_TOOLS, detect_reasoning_kind
 
 from test_answer import (
     GRADUATION_TEXT,
@@ -151,6 +152,28 @@ def _block(messages):
     return text[start:end], text[:start] + text[end:]
 
 
+def _token(message: str) -> str:
+    """The route token `/chat` issues for a reasoning question, as the website sends it back.
+
+    The kind comes from the regex, which is what `/chat` routes these questions with. A message
+    the regex does not know cannot be a reasoning question here; the fallback only covers bodies
+    rejected before the token is read, such as an over-long one.
+    """
+    kind = detect_reasoning_kind(message) or "graduation"
+
+    return route_token.issue(
+        user_id=SIGNED_IN.id, message=message, kind=kind, tools=REASONING_TOOLS[kind]
+    )
+
+
+def _with_token(body: dict) -> dict:
+    """A body with the token its question was routed with, unless it already carries one."""
+    if "route_token" in body:
+        return body
+
+    return {**body, "route_token": _token(body.get("message", ""))}
+
+
 # --- the answer ------------------------------------------------------------
 
 
@@ -160,7 +183,9 @@ def test_a_graduation_question_is_answered_from_the_template_without_a_model(api
 
     response = client.post(
         "/chat/with-data",
-        json={"message": QUESTION, "session_id": "s-1", "data": DATA},
+        json=_with_token(
+            {"message": QUESTION, "session_id": "s-1", "data": DATA}
+        ),
     )
 
     assert response.status_code == 200
@@ -183,7 +208,7 @@ def test_a_stated_article_that_was_retrieved_keeps_its_own_title_and_url(api):
     )
 
     body = client.post(
-        "/chat/with-data", json={"message": ABSENCES_QUESTION, "data": ABSENCES}
+        "/chat/with-data", json=_with_token({"message": ABSENCES_QUESTION, "data": ABSENCES})
     ).json()
 
     assert body["citations"] == [{"title": TITLE, "article": 25, "url": URL}]
@@ -193,7 +218,7 @@ def test_a_stated_article_that_was_retrieved_keeps_its_own_title_and_url(api):
 def test_the_data_block_is_a_user_message_between_the_tags(api):
     client, fake, _searcher = api(content=reply(True, "سلّم واجب 2 أول الأسبوع."))
 
-    client.post("/chat/with-data", json={"message": WEEK_QUESTION, "data": WEEK})
+    client.post("/chat/with-data", json=_with_token({"message": WEEK_QUESTION, "data": WEEK}))
 
     messages = _messages(fake)
     assert [message["role"] for message in messages] == [
@@ -214,7 +239,7 @@ def test_the_data_block_is_a_user_message_between_the_tags(api):
 def test_the_system_prompt_states_the_data_rules(api):
     client, fake, _searcher = api(content=reply(True, "الجواب (المادة 62)."))
 
-    client.post("/chat/with-data", json={"message": WEEK_QUESTION, "data": WEEK})
+    client.post("/chat/with-data", json=_with_token({"message": WEEK_QUESTION, "data": WEEK}))
 
     system = _messages(fake)[0]["content"]
     assert "<student_data>" in system
@@ -236,7 +261,7 @@ def test_an_injected_title_reaches_the_model_only_inside_the_data_block(api):
         "get_schedule": {**WEEK["get_schedule"], "classes": classes},
     }
 
-    client.post("/chat/with-data", json={"message": WEEK_QUESTION, "data": data})
+    client.post("/chat/with-data", json=_with_token({"message": WEEK_QUESTION, "data": data}))
 
     block, outside = _block(_messages(fake))
     assert injected in block
@@ -251,7 +276,7 @@ def test_a_value_that_closes_the_block_stays_escaped(api):
         "get_schedule": {**WEEK["get_schedule"], "classes": classes},
     }
 
-    client.post("/chat/with-data", json={"message": WEEK_QUESTION, "data": data})
+    client.post("/chat/with-data", json=_with_token({"message": WEEK_QUESTION, "data": data}))
 
     messages = _messages(fake)
     block_message = messages[-1]["content"]
@@ -268,7 +293,7 @@ def test_a_value_that_closes_the_block_stays_escaped(api):
 def test_retrieval_uses_the_question_and_never_a_value(api):
     client, _fake, searcher = api(content=reply(True, "x"))
 
-    client.post("/chat/with-data", json={"message": QUESTION, "data": DATA})
+    client.post("/chat/with-data", json=_with_token({"message": QUESTION, "data": DATA}))
 
     queries = [query for query, _k in searcher.queries]
     # The question first, then the kind's fixed queries: none carries a value.
@@ -281,7 +306,7 @@ def test_an_unsupported_reply_is_replaced_by_the_computed_answer(api):
     """The facts are in hand, so a reply that ignores them is replaced, not dropped."""
     client, _fake, _searcher = api(content=reply(False, ""))
 
-    response = client.post("/chat/with-data", json={"message": QUESTION, "data": DATA})
+    response = client.post("/chat/with-data", json=_with_token({"message": QUESTION, "data": DATA}))
 
     body = response.json()
     assert response.status_code == 200
@@ -358,7 +383,7 @@ def test_a_verdict_kind_is_answered_without_a_model(
     """The numbers are computed and the sentences are fixed: the model is never called."""
     client, fake, _searcher = api(content=reply(True, "x"))
 
-    response = client.post("/chat/with-data", json={"message": message, "data": data})
+    response = client.post("/chat/with-data", json=_with_token({"message": message, "data": data}))
 
     assert response.status_code == 200
     body = response.json()
@@ -372,7 +397,7 @@ def test_the_computed_numbers_are_stated_and_the_limit_carries_its_article(api):
     client, fake, _searcher = api(content=reply(True, "x"))
 
     response = client.post(
-        "/chat/with-data", json={"message": ABSENCES_QUESTION, "data": ABSENCES}
+        "/chat/with-data", json=_with_token({"message": ABSENCES_QUESTION, "data": ABSENCES})
     )
 
     body = response.json()
@@ -389,7 +414,7 @@ def test_a_number_the_facts_do_not_carry_is_asked_for_again(api):
     client, fake, _searcher = api(content=reply(True, "سلّم واجب 2 بعد 555 يومًا."))
 
     response = client.post(
-        "/chat/with-data", json={"message": WEEK_QUESTION, "data": WEEK}
+        "/chat/with-data", json=_with_token({"message": WEEK_QUESTION, "data": WEEK})
     )
 
     body = response.json()
@@ -406,7 +431,7 @@ def test_a_week_plan_is_answered_without_an_article(api):
     )
 
     response = client.post(
-        "/chat/with-data", json={"message": WEEK_QUESTION, "data": WEEK}
+        "/chat/with-data", json=_with_token({"message": WEEK_QUESTION, "data": WEEK})
     )
 
     body = response.json()
@@ -442,13 +467,8 @@ def test_a_week_plan_is_answered_without_an_article(api):
         ({"message": QUESTION}, "data_missing"),
         ({"message": QUESTION, "data": {}}, "data_missing"),
         ({"message": QUESTION, "data": {"get_gpa": GPA}}, "data_missing"),
-        ({"message": "ما معدلي", "data": {"get_gpa": GPA}}, "unknown_tool"),
         ({"message": QUESTION, "data": {**DATA, "get_schedule": {}}}, "unknown_tool"),
         ({"message": QUESTION, "data": {**DATA, "notes": {}}}, "unknown_tool"),
-        (
-            {"message": QUESTION, "data": {"get_gpa": GPA}},
-            "data_missing",
-        ),
         (
             {"message": QUESTION, "data": {**DATA, "get_gpa": {**GPA, "extra": 1}}},
             "data_invalid",
@@ -474,7 +494,7 @@ def test_a_week_plan_is_answered_without_an_article(api):
 def test_a_body_that_does_not_match_the_contract_is_a_422_with_a_code(api, body, code):
     client, fake, _searcher = api(content=reply(True, "الجواب (المادة 62)."))
 
-    response = client.post("/chat/with-data", json=body)
+    response = client.post("/chat/with-data", json=_with_token(body))
 
     assert response.status_code == 422
     assert response.json() == {"detail": code}
@@ -488,7 +508,7 @@ def test_a_body_over_twenty_kilobytes_is_a_422_with_a_code(api):
         "get_plan_progress": {**PLAN, "remaining_courses": []},
     }
 
-    response = client.post("/chat/with-data", json={"message": QUESTION, "data": data})
+    response = client.post("/chat/with-data", json=_with_token({"message": QUESTION, "data": data}))
 
     assert response.status_code == 422
     assert response.json() == {"detail": "data_too_large"}
@@ -504,7 +524,7 @@ def test_with_data_without_a_session_is_401(tmp_path, monkeypatch):
     monkeypatch.setitem(main.app.dependency_overrides, require_user, unauthenticated)
 
     response = TestClient(main.app).post(
-        "/chat/with-data", json={"message": QUESTION, "data": DATA}
+        "/chat/with-data", json=_with_token({"message": QUESTION, "data": DATA})
     )
 
     assert response.status_code == 401
@@ -515,7 +535,7 @@ def test_the_data_is_never_logged_on_success(api, caplog):
     client, _fake, _searcher = api(content=reply(True, "الجواب (المادة 62)."))
 
     with caplog.at_level("DEBUG", logger="app.main"):
-        client.post("/chat/with-data", json={"message": QUESTION, "data": DATA})
+        client.post("/chat/with-data", json=_with_token({"message": QUESTION, "data": DATA}))
 
     assert "get_gpa" in caplog.text
     assert "get_plan_progress" in caplog.text
@@ -529,7 +549,7 @@ def test_the_data_is_never_logged_when_the_body_is_rejected(api, caplog):
     data = {**DATA, "get_gpa": {**GPA, "extra": SENTINEL}}
 
     with caplog.at_level("DEBUG", logger="app.main"):
-        client.post("/chat/with-data", json={"message": QUESTION, "data": data})
+        client.post("/chat/with-data", json=_with_token({"message": QUESTION, "data": data}))
 
     assert SENTINEL not in caplog.text
 
@@ -544,7 +564,7 @@ def test_an_unexpected_error_is_a_503_and_is_never_logged(api, monkeypatch, capl
 
     with caplog.at_level(logging.DEBUG):
         response = client.post(
-            "/chat/with-data", json={"message": WEEK_QUESTION, "data": WEEK}
+            "/chat/with-data", json=_with_token({"message": WEEK_QUESTION, "data": WEEK})
         )
 
     assert response.status_code == 503
@@ -566,7 +586,7 @@ def test_the_data_is_never_logged_when_the_model_fails(api, caplog):
 
     with caplog.at_level("DEBUG", logger="app.main"):
         response = client.post(
-            "/chat/with-data", json={"message": WEEK_QUESTION, "data": WEEK}
+            "/chat/with-data", json=_with_token({"message": WEEK_QUESTION, "data": WEEK})
         )
 
     assert response.status_code == 503
@@ -581,6 +601,6 @@ def test_a_missing_index_is_a_503(api, monkeypatch):
 
     monkeypatch.setattr(main, "get_retriever", missing)
 
-    response = client.post("/chat/with-data", json={"message": QUESTION, "data": DATA})
+    response = client.post("/chat/with-data", json=_with_token({"message": QUESTION, "data": DATA}))
 
     assert response.status_code == 503

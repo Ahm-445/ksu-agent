@@ -17,27 +17,39 @@ afterEach(() => {
 });
 
 describe("a reasoning reply", () => {
-  it("names its tools and carries no data", () => {
+  it("names its tools and the token that binds them to this question", () => {
     const result = parseChatResponse({
       type: "reason",
       tools: ["get_plan_progress", "get_gpa"],
+      route_token: "signed.route-token",
     });
 
     expect(result).toEqual({
       ok: true,
       kind: "reason",
       tools: ["get_plan_progress", "get_gpa"],
+      routeToken: "signed.route-token",
     });
   });
 
+  it("is not a reason reply when the route token is missing or not text", () => {
+    const tools = ["get_plan_progress", "get_gpa"];
+
+    expect(parseChatResponse({ type: "reason", tools })).toBeNull();
+    expect(parseChatResponse({ type: "reason", tools, route_token: "" })).toBeNull();
+    expect(parseChatResponse({ type: "reason", tools, route_token: 7 })).toBeNull();
+  });
+
   it("is not an answer when the tools are missing, empty or too many", () => {
-    expect(parseChatResponse({ type: "reason" })).toBeNull();
-    expect(parseChatResponse({ type: "reason", tools: [] })).toBeNull();
+    const token = { route_token: "signed.route-token" };
+
+    expect(parseChatResponse({ type: "reason", ...token })).toBeNull();
+    expect(parseChatResponse({ type: "reason", tools: [], ...token })).toBeNull();
     expect(
-      parseChatResponse({ type: "reason", tools: ["a", "b", "c", "d"] }),
+      parseChatResponse({ type: "reason", tools: ["a", "b", "c", "d"], ...token }),
     ).toBeNull();
-    expect(parseChatResponse({ type: "reason", tools: [1] })).toBeNull();
-    expect(parseChatResponse({ type: "reason", tools: [""] })).toBeNull();
+    expect(parseChatResponse({ type: "reason", tools: [1], ...token })).toBeNull();
+    expect(parseChatResponse({ type: "reason", tools: [""], ...token })).toBeNull();
   });
 
   it("does not change what an answer or a tool reply means", () => {
@@ -104,6 +116,7 @@ describe("sending the approved values", () => {
       message: "هل أقدر أتخرج؟",
       sessionId: "s-1",
       data,
+      routeToken: "signed.route-token",
     });
 
     expect(result).toEqual({
@@ -122,6 +135,7 @@ describe("sending the approved values", () => {
       message: "هل أقدر أتخرج؟",
       session_id: "s-1",
       data,
+      route_token: "signed.route-token",
     });
   });
 
@@ -137,7 +151,12 @@ describe("sending the approved values", () => {
     const { sendWithData } = await import("@/lib/api/chat");
 
     expect(
-      await sendWithData({ message: "س", sessionId: "s-1", data: { get_gpa: GPA } }),
+      await sendWithData({
+        message: "س",
+        sessionId: "s-1",
+        data: { get_gpa: GPA },
+        routeToken: "signed.route-token",
+      }),
     ).toEqual({ ok: false, error: "invalid" });
   });
 
@@ -153,7 +172,12 @@ describe("sending the approved values", () => {
     const { sendWithData } = await import("@/lib/api/chat");
 
     expect(
-      await sendWithData({ message: "س", sessionId: "s-1", data: { get_gpa: GPA } }),
+      await sendWithData({
+        message: "س",
+        sessionId: "s-1",
+        data: { get_gpa: GPA },
+        routeToken: "signed.route-token",
+      }),
     ).toEqual({ ok: false, error: "unauthenticated" });
   });
 });
