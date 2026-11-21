@@ -1,7 +1,14 @@
 // DEVELOPMENT ONLY.
-import type { SendMessageInput, SendMessageResult } from "./chat";
+import type {
+  SendMessageInput,
+  SendMessageResult,
+  SendWithDataInput,
+} from "./chat";
 
 const DELAY_MS = 1200;
+
+// A placeholder: the real token is signed by the backend and only it can check one.
+const MOCK_ROUTE_TOKEN = "mock.route-token";
 
 const CITATION = {
   title:
@@ -63,13 +70,62 @@ export async function mockSendMessage({
   const isEnglish = /[A-Za-z]/.test(message);
   const text = isEnglish ? ANSWERS.en : ANSWERS.ar;
 
+  // A reasoning question names the tools it needs, exactly as the backend answers it; the
+  // website reads them in the browser and asks the student before sending anything.
+  if (/أتخرج|اتخرج|graduate/i.test(message)) {
+    return {
+      ok: true,
+      kind: "reason",
+      tools: ["get_plan_progress", "get_gpa"],
+      routeToken: MOCK_ROUTE_TOKEN,
+    };
+  }
+
+  // A question about the student's own GPA becomes a tool request, exactly as the
+  // backend answers it; the values are read from Edugate in the browser.
+  if (message.includes("معدلي") || /my\s+(cumulative\s+)?gpa/i.test(message)) {
+    return { ok: true, kind: "tool", tool: "get_gpa" };
+  }
+
   if (message.includes("#nosource")) {
-    return { ok: true, answer: text.withoutSource, citations: [] };
+    return {
+      ok: true,
+      kind: "answer",
+      answer: text.withoutSource,
+      citations: [],
+      basis: "regulation",
+    };
   }
 
   return {
     ok: true,
+    kind: "answer",
     answer: text.withSource,
     citations: [{ ...CITATION }],
+    basis: "regulation",
   };
 }
+
+/** The reasoning answer, after the student approved sending their values. */
+export async function mockSendWithData({
+  message,
+  signal,
+}: SendWithDataInput): Promise<SendMessageResult> {
+  const completed = await delay(DELAY_MS, signal);
+
+  if (!completed) {
+    return { ok: false, error: "aborted" };
+  }
+
+  const isEnglish = /[A-Za-z]/.test(message);
+  const text = isEnglish ? ANSWERS.en : ANSWERS.ar;
+
+  return {
+    ok: true,
+    kind: "answer",
+    answer: text.withSource,
+    citations: [{ ...CITATION }],
+    basis: "regulation",
+  };
+}
+

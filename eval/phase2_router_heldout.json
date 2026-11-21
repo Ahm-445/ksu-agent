@@ -1,0 +1,266 @@
+[
+  {
+    "id": "heldout-tool-gpa-01",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "وش معدلي التراكمي؟",
+    "expected": { "kind": "tool", "tools": ["get_gpa"] },
+    "note": "Hijazi: وش for what, and the cumulative GPA named in full."
+  },
+  {
+    "id": "heldout-tool-gpa-02",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "كم معدلي",
+    "expected": { "kind": "tool", "tools": ["get_gpa"] },
+    "note": "Najdi: كم with the possessive and no question mark."
+  },
+  {
+    "id": "heldout-tool-gpa-03",
+    "lang": "en",
+    "dialect": "en",
+    "question": "what's my GPA",
+    "expected": { "kind": "tool", "tools": ["get_gpa"] },
+    "note": "The English question without a question mark."
+  },
+  {
+    "id": "heldout-tool-schedule-01",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "وش جدولي بكرة؟",
+    "expected": { "kind": "tool", "tools": ["get_schedule"] },
+    "note": "The timetable for one day, not the whole term."
+  },
+  {
+    "id": "heldout-tool-schedule-02",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "متى محاضراتي يوم الأحد",
+    "expected": { "kind": "tool", "tools": ["get_schedule"] },
+    "note": "محاضراتي names the student's own classes; the schedule page answers it."
+  },
+  {
+    "id": "heldout-tool-absences-01",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "كم مرة غبت في 434",
+    "expected": { "kind": "tool", "tools": ["get_absences"] },
+    "note": "How many times the student was absent in one course: a count, not a verdict."
+  },
+  {
+    "id": "heldout-tool-absences-02",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "نسبة غيابي كم",
+    "expected": { "kind": "tool", "tools": ["get_absences"] },
+    "note": "The question word at the end, Najdi word order."
+  },
+  {
+    "id": "heldout-tool-final-exams-01",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "متى الفاينل حق 483",
+    "expected": { "kind": "tool", "tools": ["get_final_exams"] },
+    "note": "حق names the course the final belongs to."
+  },
+  {
+    "id": "heldout-tool-grades-01",
+    "lang": "ar",
+    "dialect": "gulf",
+    "question": "وش نتايجي هالترم",
+    "expected": { "kind": "tool", "tools": ["get_grades"] },
+    "note": "نتايجي is the Gulf plural of نتيجتي: the term's course results."
+  },
+  {
+    "id": "heldout-tool-plan-01",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "كم ساعة باقية لي",
+    "expected": { "kind": "tool", "tools": ["get_plan_progress"] },
+    "note": "The remaining hours, with the word the pattern expects."
+  },
+  {
+    "id": "heldout-tool-plan-02",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "وش المواد اللي باقية علي",
+    "expected": { "kind": "tool", "tools": ["get_plan_progress"] },
+    "note": "The remaining courses, named as المواد rather than المقررات."
+  },
+  {
+    "id": "heldout-tool-assignments-01",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "وش عندي تسليمات الأسبوع هذا",
+    "expected": { "kind": "tool", "tools": ["get_assignments"] },
+    "note": "What the student has to hand in this week."
+  },
+  {
+    "id": "heldout-tool-assignments-02",
+    "lang": "en",
+    "dialect": "en",
+    "question": "any assignments due this week?",
+    "expected": { "kind": "tool", "tools": ["get_assignments"] },
+    "note": "The English form, as a question without a verb."
+  },
+  {
+    "id": "heldout-tool-lms-grades-01",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "كم جبت في الميد",
+    "expected": { "kind": "tool", "tools": ["get_lms_grades"] },
+    "note": "الميد is the midterm: one grade only the LMS gradebook holds."
+  },
+  {
+    "id": "heldout-tool-lms-grades-02",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "درجاتي في البلاكبورد",
+    "expected": { "kind": "tool", "tools": ["get_lms_grades"] },
+    "note": "The LMS named without the space, so the gradebook is the page."
+  },
+  {
+    "id": "heldout-tool-courses-01",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "وش مقرراتي في البلاك بورد",
+    "expected": { "kind": "tool", "tools": ["get_courses"] },
+    "note": "The LMS course list, not the Edugate results."
+  },
+  {
+    "id": "heldout-reason-graduation-01",
+    "lang": "ar",
+    "dialect": "gulf",
+    "question": "ممكن أتخرج الترم الجاي؟",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "ممكن without ني: the Gulf way to ask whether the student can."
+  },
+  {
+    "id": "heldout-reason-graduation-02",
+    "lang": "en",
+    "dialect": "en",
+    "question": "will I be able to graduate next semester",
+    "expected": { "kind": "reason", "reasoning": "graduation", "tools": ["get_plan_progress", "get_gpa"] },
+    "note": "be able to, the other English form."
+  },
+  {
+    "id": "heldout-reason-absences-01",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "انا قريب من الحرمان في 483؟",
+    "expected": { "kind": "reason", "reasoning": "absences", "tools": ["get_absences"] },
+    "note": "The verdict for one named course."
+  },
+  {
+    "id": "heldout-reason-absences-02",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "هل انا على وشك الحرمان",
+    "expected": { "kind": "reason", "reasoning": "absences", "tools": ["get_absences"] },
+    "note": "على وشك: about to be barred, without the question mark."
+  },
+  {
+    "id": "heldout-reason-gpa-target-01",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "كم لازم أجيب عشان يصير معدلي 4.75",
+    "expected": { "kind": "reason", "reasoning": "gpa_target", "tools": ["get_gpa"] },
+    "note": "لازم أجيب for the average a target needs."
+  },
+  {
+    "id": "heldout-reason-warning-01",
+    "lang": "ar",
+    "dialect": "najdi",
+    "question": "هل عندي انذار اكاديمي",
+    "expected": { "kind": "reason", "reasoning": "academic_warning", "tools": ["get_gpa"] },
+    "note": "The student's own standing, with عندي instead of انا."
+  },
+  {
+    "id": "heldout-reason-conflict-01",
+    "lang": "ar",
+    "dialect": "hijazi",
+    "question": "عندي تعارض في الفاينلات؟",
+    "expected": { "kind": "reason", "reasoning": "exam_conflicts", "tools": ["get_final_exams"] },
+    "note": "The plural الفاينلات rather than الفاينل."
+  },
+  {
+    "id": "heldout-reason-week-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "نظم لي أسبوعي",
+    "expected": { "kind": "reason", "reasoning": "plan_week", "tools": ["get_assignments", "get_schedule"] },
+    "note": "The imperative نظم with لي, and أسبوعي rather than وقتي."
+  },
+  {
+    "id": "heldout-reg-01",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما هي شروط الحرمان من الاختبار",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The rule itself: no student in it, so no page is read."
+  },
+  {
+    "id": "heldout-reg-02",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كم نسبة الغياب المسموحة",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The allowed percentage, not the student's own percentage."
+  },
+  {
+    "id": "heldout-reg-03",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما هو الحد الأدنى للعبء الدراسي",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The rule's minimum load, not the student's plan."
+  },
+  {
+    "id": "heldout-reg-04",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "كيف يحسب المعدل التراكمي",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "How the GPA is calculated: a method, not a value."
+  },
+  {
+    "id": "heldout-reg-05",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما شروط التخرج مع مرتبة الشرف",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The conditions for honours: no student's own plan in it."
+  },
+  {
+    "id": "heldout-reg-06",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "متى يفصل الطالب أكاديميا",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "الطالب is any student, so the rule answers it."
+  },
+  {
+    "id": "heldout-reg-07",
+    "lang": "en",
+    "dialect": "en",
+    "question": "what is the attendance policy",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "A policy question in English."
+  },
+  {
+    "id": "heldout-reg-08",
+    "lang": "en",
+    "dialect": "en",
+    "question": "how is the GPA calculated",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "The method in English, with no my."
+  },
+  {
+    "id": "heldout-reg-09",
+    "lang": "ar",
+    "dialect": "msa",
+    "question": "ما هي مدة الاختبار النهائي",
+    "expected": { "kind": "regulation", "tools": [] },
+    "note": "How long the final exam is, not when the student's own final is."
+  }
+]

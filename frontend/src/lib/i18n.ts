@@ -1,3 +1,5 @@
+import type { Category, Source, ToolName } from "@/lib/extension";
+
 export type Lang = "ar" | "en";
 
 export type Dictionary = {
@@ -116,17 +118,46 @@ export type Dictionary = {
     articleLabel: string;
     opensInNewTab: string;
     noSource: string;
+    notFromRegulation: string;
     searching: string;
     disclaimer: string;
     newMessages: string;
+    personalNote: string;
+    categories: Record<Category, string>;
+    toolSources: Record<Source, string>;
     errors: {
       unavailable: string;
       invalid: string;
+      extensionMissingFor: string;
+      consentMissing: string;
+      consentMissingFor: string;
+      notSignedInFor: string;
+      readFailedFor: string;
     };
     empty: {
       greeting: string;
       note: string;
       suggestions: [string, string, string, string];
+    };
+    extension: {
+      install: string;
+      installNote: string;
+      connected: string;
+      allowed: string;
+      separator: string;
+      noneAllowed: string;
+    };
+    consent: {
+      title: string;
+      intro: string;
+      tools: Record<ToolName, string>;
+      fields: string;
+      items: string;
+      showJson: string;
+      hideJson: string;
+      approve: string;
+      cancel: string;
+      notSent: string;
     };
   };
   footer: {
@@ -277,12 +308,31 @@ const ar: Dictionary = {
     opensInNewTab: "يفتح في تبويب جديد",
     noSource:
       "لم يُعثر على مصدر رسمي لهذه الإجابة. للتأكد، راجع عمادة القبول والتسجيل.",
+    notFromRegulation:
+      "هذه الإجابة مبنية على بياناتك أنت، ولا يجيب عليها حكم في اللائحة.",
     searching: "جارٍ البحث في المصادر…",
     disclaimer: "قد يخطئ المساعد. تحقق دائمًا من المصدر.",
     newMessages: "رسائل جديدة",
+    personalNote: "من حسابك في Edugate — لم يُرسل إلى خادم KSU Agent",
+    categories: {
+      grades: "الدرجات",
+      schedule: "الجدول الدراسي",
+      attendance: "الغياب والتأخير",
+      plan: "الخطة الدراسية",
+      lms: "مقررات LMS",
+    },
+    toolSources: {
+      edugate: "Edugate",
+      lms: "البلاك بورد",
+    },
     errors: {
       unavailable: "تعذر الاتصال بالخادم، حاول مرة أخرى.",
       invalid: "تعذر معالجة هذه الرسالة. جرّب صياغتها بشكل مختلف.",
+      extensionMissingFor: "ثبّت إضافة KSU Agent لتقرأ بياناتك من {source}.",
+      consentMissing: "افتح الإضافة واسمح بقراءة البيانات التي تحتاجها.",
+      consentMissingFor: "افتح إضافة KSU Agent واسمح بقراءة «{category}».",
+      notSignedInFor: "افتح {source} أو أعد تحميل صفحته في هذا المتصفح ثم سجّل الدخول.",
+      readFailedFor: "تعذر قراءة بياناتك من {source}، حاول مرة أخرى.",
     },
     empty: {
       greeting: "مرحبًا {name}، كيف أقدر أساعدك؟",
@@ -293,6 +343,38 @@ const ar: Dictionary = {
         "كيف أعتذر عن مقرر أو عن فصل دراسي؟",
         "كيف يُحسب المعدل التراكمي؟",
       ],
+    },
+    extension: {
+      install: "اربط حسابك في Edugate وLMS — ثبّت إضافة KSU Agent",
+      installNote:
+        "لا نطلب كلمة مرور الجامعة أبدًا؛ تُقرأ الصفحات في متصفحك وبعد موافقتك فقط.",
+      connected: "الإضافة متصلة (الإصدار {version})",
+      allowed: "يمكن للإضافة قراءة:",
+      separator: "، ",
+      noneAllowed: "لم تسمح بقراءة أي بيانات بعد",
+    },
+    consent: {
+      title: "هل أرسل هذه البيانات لهذا السؤال؟",
+      intro:
+        "هذا السؤال يحتاج مقارنة قيمك، وهي تُقرأ في متصفحك. إن وافقت، تُرسل مرة واحدة لخادم KSU Agent لهذا السؤال فقط، ولا تُحفظ ولا تُسجَّل.",
+      tools: {
+        get_gpa: "معدلك التراكمي والساعات المكتسبة من Edugate",
+        get_grades: "درجات المواد لهذا الفصل من Edugate",
+        get_schedule: "جدولك الدراسي من Edugate",
+        get_final_exams: "مواعيد اختباراتك النهائية من Edugate",
+        get_absences: "نسب الغياب لكل مقرر من Edugate",
+        get_plan_progress: "الساعات المكتملة والمقررات المتبقية من Edugate",
+        get_courses: "قائمة مقرراتك من البلاك بورد",
+        get_assignments: "واجباتك القادمة ومواعيد تسليمها من البلاك بورد",
+        get_lms_grades: "درجاتك في البلاك بورد",
+      },
+      fields: "الحقول: {fields}",
+      items: "عدد العناصر: {count}",
+      showJson: "اعرض البيانات التي ستُرسل",
+      hideJson: "أخفِ البيانات",
+      approve: "أوافق، أرسل لهذا السؤال",
+      cancel: "لا ترسل",
+      notSent: "لم يُرسل شيء إلى الخادم.",
     },
   },
   footer: {
@@ -444,12 +526,31 @@ const en: Dictionary = {
     opensInNewTab: "opens in a new tab",
     noSource:
       "No official source was found for this answer. Please confirm with the Deanship of Admission and Registration.",
+    notFromRegulation:
+      "This answer rests on your own data; no rule in the regulation answers it.",
     searching: "Searching the official sources…",
     disclaimer: "The assistant can make mistakes. Always check the source.",
     newMessages: "New messages",
+    personalNote: "From your Edugate — not sent to KSU Agent's server",
+    categories: {
+      grades: "grades",
+      schedule: "class schedule",
+      attendance: "absence and lateness",
+      plan: "study plan",
+      lms: "LMS courses",
+    },
+    toolSources: {
+      edugate: "Edugate",
+      lms: "the LMS (Blackboard)",
+    },
     errors: {
       unavailable: "Could not reach the server, please try again.",
       invalid: "This message could not be processed. Try rewording it.",
+      extensionMissingFor: "Install the KSU Agent extension to read your data from {source}.",
+      consentMissing: "Open the extension and allow the data it needs.",
+      consentMissingFor: "Open the KSU Agent extension and allow «{category}».",
+      notSignedInFor: "Open or reload {source} in this browser and log in.",
+      readFailedFor: "Could not read your data from {source}, please try again.",
     },
     empty: {
       greeting: "Hi {name}, how can I help?",
@@ -460,6 +561,38 @@ const en: Dictionary = {
         "How do I withdraw from a course or a semester?",
         "How is the cumulative GPA calculated?",
       ],
+    },
+    extension: {
+      install: "Connect Edugate & LMS — install the KSU Agent extension",
+      installNote:
+        "We never ask for your KSU password. Pages are read in your browser, only after you allow it.",
+      connected: "Extension connected (version {version})",
+      allowed: "The extension can read:",
+      separator: ", ",
+      noneAllowed: "You haven't allowed any data yet",
+    },
+    consent: {
+      title: "Send this data for this question?",
+      intro:
+        "This question needs your values compared, and they are read in your browser. If you approve, they are sent once to the KSU Agent server for this question only, and are never stored or logged.",
+      tools: {
+        get_gpa: "Your cumulative GPA and earned hours from Edugate",
+        get_grades: "Your course grades for this term from Edugate",
+        get_schedule: "Your class schedule from Edugate",
+        get_final_exams: "Your final exam dates from Edugate",
+        get_absences: "Your absence percentages per course from Edugate",
+        get_plan_progress: "Your completed hours and remaining courses from Edugate",
+        get_courses: "Your course list from the LMS",
+        get_assignments: "Your upcoming assignments and their due dates from the LMS",
+        get_lms_grades: "Your grades on the LMS",
+      },
+      fields: "Fields: {fields}",
+      items: "Items: {count}",
+      showJson: "Show the data that will be sent",
+      hideJson: "Hide the data",
+      approve: "Approve, send for this question",
+      cancel: "Don't send",
+      notSent: "Nothing was sent to the server.",
     },
   },
   footer: {

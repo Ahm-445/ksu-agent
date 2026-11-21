@@ -1,4 +1,4 @@
-import type { Citation } from "@/lib/api/chat";
+import type { AnswerBasis, Citation } from "@/lib/api/chat";
 
 export const CHAT_STORAGE_PREFIX = "ksu-agent-chat:";
 export const MAX_STORED_MESSAGES = 50;
@@ -7,7 +7,11 @@ export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  note?: string;
+  personal?: boolean;
   citations?: Citation[];
+  /** What the answer rests on, so a stored answer still says so after a reload. */
+  basis?: AnswerBasis;
   status: "ok" | "error";
   errorKind?: "invalid" | "server_unavailable";
 };
@@ -56,7 +60,7 @@ function parseMessage(value: unknown): ChatMessage | null {
     return null;
   }
 
-  const { id, role, text, status, errorKind } = value;
+  const { id, role, text, note, personal, status, errorKind, basis } = value;
 
   if (typeof id !== "string" || typeof text !== "string") {
     return null;
@@ -72,8 +76,20 @@ function parseMessage(value: unknown): ChatMessage | null {
 
   const message: ChatMessage = { id, role, text, status };
 
+  if (typeof note === "string" && note) {
+    message.note = note;
+  }
+
+  if (personal === true) {
+    message.personal = true;
+  }
+
   if (errorKind === "invalid" || errorKind === "server_unavailable") {
     message.errorKind = errorKind;
+  }
+
+  if (basis === "regulation" || basis === "student_data") {
+    message.basis = basis;
   }
 
   const citations = parseCitations(value.citations);
@@ -127,12 +143,17 @@ export function readChat(userId: string): StoredChat | null {
 
 export function writeChat(userId: string, chat: StoredChat): void {
   try {
+    // Written through the same reader that reads it back: a message keeps its own fields
+    // and nothing else, so a caller that attaches a tool's payload cannot put a value in
+    // web storage (ADR 0001, rule 4).
+    const messages = chat.messages
+      .map(parseMessage)
+      .filter((message): message is ChatMessage => message !== null)
+      .slice(-MAX_STORED_MESSAGES);
+
     window.sessionStorage.setItem(
       storageKey(userId),
-      JSON.stringify({
-        session_id: chat.session_id,
-        messages: chat.messages.slice(-MAX_STORED_MESSAGES),
-      }),
+      JSON.stringify({ session_id: chat.session_id, messages }),
     );
   } catch {
     // Storage unavailable or full: the conversation stays in memory.

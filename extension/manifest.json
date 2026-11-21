@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "KSU Agent",
+  "version": "0.1.0",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://edugate.ksu.edu.sa/*",
+    "https://lms.ksu.edu.sa/*"
+  ],
+  "background": {
+    "service_worker": "dist/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://edugate.ksu.edu.sa/*"],
+      "js": ["dist/content/edugate.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://lms.ksu.edu.sa/*"],
+      "js": ["dist/content/lms.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:3000/*",
+      "https://ksu-agent-web.onrender.com/*"
+    ]
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtHGTOvaho/KKopVqtfyJCLUKYF/iEtl+f7X49bZZgHMt5W7wlqcUZ5VtGwJnnBJmj60+DVH/FOw05xWsh8iBJYExk5CYA60IUNrpQ+yvXm5YRcsBtj5MRWhtPZqHxp+gSekmfN+Fi8RNVsrCOe+RJFiEfl4PBQ1S+BQcbUu4ybIvffzrw+jGUvcmdj/iPvB3v6Pxd7HdocXv5fBJmrle5GZejUrpm6+412i3n2IKe3ZmRpnSJRUTcjsgxThKZTZDWZia6Gx0m9B26hqn/rcBkO40DvgTkyzOdn0A4rUYFcY/yO6aVH84hjuBrHSqG0nTPGHbQVPJeol98EdUsMkntwIDAQAB"
+}

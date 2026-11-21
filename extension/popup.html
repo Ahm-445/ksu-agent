@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>KSU Agent</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="card">
+      <p class="brand">KSU Agent</p>
+      <p class="meta">
+        الإصدار <span data-version>—</span> ·
+        <span lang="en" dir="ltr">Version <span data-version>—</span></span>
+      </p>
+
+      <section class="section" aria-labelledby="consent-heading">
+        <h1 id="consent-heading">ما الذي يمكن للإضافة قراءته؟</h1>
+        <p class="sub" lang="en" dir="ltr">What can the extension read?</p>
+
+        <ul class="switches">
+          <li class="switch">
+            <input type="checkbox" id="consent-grades" data-consent="grades" />
+            <label for="consent-grades">
+              <span class="name"
+                >الدرجات <span class="en" lang="en" dir="ltr">grades</span></span
+              >
+              <span class="desc">المعدل والدرجات من Edugate وLMS</span>
+              <span class="desc" lang="en" dir="ltr"
+                >GPA and grades from Edugate and LMS</span
+              >
+            </label>
+          </li>
+
+          <li class="switch">
+            <input type="checkbox" id="consent-schedule" data-consent="schedule" />
+            <label for="consent-schedule">
+              <span class="name"
+                >الجدول الدراسي
+                <span class="en" lang="en" dir="ltr">class schedule</span></span
+              >
+              <span class="desc">الجدول الدراسي وجدول الاختبارات النهائية</span>
+              <span class="desc" lang="en" dir="ltr"
+                >class schedule and final exams</span
+              >
+            </label>
+          </li>
+
+          <li class="switch">
+            <input
+              type="checkbox"
+              id="consent-attendance"
+              data-consent="attendance"
+            />
+            <label for="consent-attendance">
+              <span class="name"
+                >الغياب والتأخير
+                <span class="en" lang="en" dir="ltr"
+                  >absence and lateness</span
+                ></span
+              >
+              <span class="desc">نسب الغياب والتأخير</span>
+              <span class="desc" lang="en" dir="ltr"
+                >absence and lateness rates</span
+              >
+            </label>
+          </li>
+
+          <li class="switch">
+            <input type="checkbox" id="consent-plan" data-consent="plan" />
+            <label for="consent-plan">
+              <span class="name"
+                >الخطة الدراسية
+                <span class="en" lang="en" dir="ltr">study plan</span></span
+              >
+              <span class="desc">الخطة الدراسية والمقررات المتبقية</span>
+              <span class="desc" lang="en" dir="ltr"
+                >study plan and remaining courses</span
+              >
+            </label>
+          </li>
+
+          <li class="switch">
+            <input type="checkbox" id="consent-lms" data-consent="lms" />
+            <label for="consent-lms">
+              <span class="name"
+                >مقررات LMS
+                <span class="en" lang="en" dir="ltr">LMS courses</span></span
+              >
+              <span class="desc"
+                >المقررات والواجبات ومواعيد التسليم في LMS</span
+              >
+              <span class="desc" lang="en" dir="ltr"
+                >LMS courses, assignments and due dates</span
+              >
+            </label>
+          </li>
+        </ul>
+
+        <p class="note">
+          تُقرأ البيانات في متصفحك فقط ولا تُرسل إلى خادم KSU Agent. لا نطلب كلمة
+          مرور جامعة الملك سعود أبداً.
+        </p>
+        <p class="note" lang="en" dir="ltr">
+          Data is read in your browser only and is not sent to KSU Agent's server. We
+          never ask for your KSU password.
+        </p>
+      </section>
+
+      <div class="divider" role="separator"></div>
+
+      <section class="section" aria-labelledby="history-heading">
+        <h2 id="history-heading">السجل</h2>
+        <p class="sub" lang="en" dir="ltr">History</p>
+        <ul class="history" id="history" aria-live="polite"></ul>
+      </section>
+
+      <div class="divider" role="separator"></div>
+
+      <section class="section" aria-labelledby="disconnect-heading">
+        <h2 id="disconnect-heading">قطع الاتصال</h2>
+        <p class="sub" lang="en" dir="ltr">Disconnect</p>
+
+        <button type="button" class="button danger" id="disconnect">
+          قطع الاتصال / Disconnect
+        </button>
+
+        <div class="confirm" id="disconnect-confirm" hidden>
+          <p class="confirm-text">
+            سيُحذف كل ما خزّنته الإضافة: الأذونات والسجل
+          </p>
+          <p class="confirm-text" lang="en" dir="ltr">
+            This deletes everything the extension stored: permissions and history
+          </p>
+          <div class="confirm-actions">
+            <button type="button" class="button danger" id="confirm-yes">
+              تأكيد / Confirm
+            </button>
+            <button type="button" class="button" id="confirm-cancel">
+              إلغاء / Cancel
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="dist/popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,146 @@
+{
+  "results": [
+    {
+      "itemSourceId": "_1001_1",
+      "itemSourceType": "Course",
+      "calendarId": "_999_1",
+      "calendarNameLocalizable": {
+        "rawValue": "SWE999_99999_1_999: Software Engineering Project"
+      },
+      "title": "Project proposal",
+      "location": null,
+      "startDate": "2026-11-21T20:59:00.000Z",
+      "endDate": "2026-11-21T20:59:00.000Z",
+      "modifiedDate": "2026-11-10T09:00:00.000Z",
+      "color": "#FF0000",
+      "disableResizing": false,
+      "createdByUser": false,
+      "userCreated": false,
+      "dynamicCalendarItemProps": {
+        "gradable": true,
+        "eventType": "Assignment",
+        "categoryId": "_1001_1",
+        "attemptable": true,
+        "isDateRangeLimited": false,
+        "handle": "_1001_1"
+      },
+      "permissions": {},
+      "visibility": "PUBLIC"
+    },
+    {
+      "itemSourceId": "_1002_1",
+      "itemSourceType": "Course",
+      "calendarId": "_999_2",
+      "calendarNameLocalizable": {
+        "rawValue": "SWE999_99999_2_999: Software Engineering Project"
+      },
+      "title": "Sprint review",
+      "location": null,
+      "startDate": "2026-11-23T06:30:00.000Z",
+      "endDate": "2026-11-23T06:30:00.000Z",
+      "modifiedDate": "2026-11-12T11:15:00.000Z",
+      "color": "#FF0000",
+      "disableResizing": false,
+      "createdByUser": false,
+      "userCreated": false,
+      "dynamicCalendarItemProps": {
+        "gradable": true,
+        "eventType": "Assignment",
+        "categoryId": "_1002_1",
+        "attemptable": true,
+        "isDateRangeLimited": false,
+        "handle": "_1002_1"
+      },
+      "permissions": {},
+      "visibility": "PUBLIC"
+    },
+    {
+      "itemSourceId": "_1003_1",
+      "itemSourceType": "Course",
+      "calendarId": "_996_1",
+      "calendarNameLocalizable": {
+        "rawValue": "ENG999_99999_1_999: Technical Writing"
+      },
+      "title": "Essay draft",
+      "location": null,
+      "startDate": "2026-11-20T20:59:00.000Z",
+      "endDate": "2026-11-20T20:59:00.000Z",
+      "modifiedDate": "2026-11-08T07:45:00.000Z",
+      "color": "#0000FF",
+      "disableResizing": false,
+      "createdByUser": false,
+      "userCreated": false,
+      "dynamicCalendarItemProps": {
+        "gradable": true,
+        "eventType": "Assignment",
+        "categoryId": "_1003_1",
+        "attemptable": true,
+        "isDateRangeLimited": false,
+        "handle": "_1003_1"
+      },
+      "permissions": {},
+      "visibility": "PUBLIC"
+    },
+    {
+      "itemSourceId": "_1004_1",
+      "itemSourceType": "Course",
+      "calendarId": "_999_3",
+      "calendarNameLocalizable": {
+        "rawValue": "SWE999_99999_3_999: Software Engineering Project"
+      },
+      "title": "Section quiz",
+      "location": null,
+      "startDate": "2026-11-24T22:30:00.000Z",
+      "endDate": "2026-11-24T22:30:00.000Z",
+      "modifiedDate": "2026-11-15T13:20:00.000Z",
+      "color": "#FF0000",
+      "disableResizing": false,
+      "createdByUser": false,
+      "userCreated": false,
+      "dynamicCalendarItemProps": {
+        "gradable": true,
+        "eventType": "Quiz",
+        "categoryId": "_1004_1",
+        "attemptable": true,
+        "isDateRangeLimited": false,
+        "handle": "_1004_1"
+      },
+      "permissions": {},
+      "visibility": "PUBLIC"
+    },
+    {
+      "itemSourceId": "_1005_1",
+      "itemSourceType": "Course",
+      "calendarId": "_111_1",
+      "calendarNameLocalizable": {
+        "rawValue": "MATH999_99999_1_999: Calculus II"
+      },
+      "title": "Past course quiz",
+      "location": null,
+      "startDate": "2026-11-22T10:00:00.000Z",
+      "endDate": "2026-11-22T10:00:00.000Z",
+      "modifiedDate": "2026-11-05T08:00:00.000Z",
+      "color": "#00AA00",
+      "disableResizing": false,
+      "createdByUser": false,
+      "userCreated": false,
+      "dynamicCalendarItemProps": {
+        "gradable": true,
+        "eventType": "Quiz",
+        "categoryId": "_1005_1",
+        "attemptable": true,
+        "isDateRangeLimited": false,
+        "handle": "_1005_1"
+      },
+      "permissions": {},
+      "visibility": "PUBLIC"
+    }
+  ],
+  "paging": {
+    "previousPage": null,
+    "nextPage": null,
+    "limit": 50,
+    "count": 5,
+    "offset": 0
+  }
+}

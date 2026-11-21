@@ -1,0 +1,139 @@
+{
+  "results": [
+    {
+      "role": "Student",
+      "courseId": "_999_1",
+      "course": {
+        "id": "_999_1",
+        "courseId": "SWE999_99999_1_999",
+        "displayId": "SWE999_99999",
+        "name": "Software Engineering Project",
+        "isOrganization": false,
+        "isAvailable": true,
+        "isClosed": false,
+        "term": {
+          "name": "First Term 1448/1449",
+          "startDate": "2026-08-23T00:00:00.000Z",
+          "endDate": "2026-12-24T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "role": "Student",
+      "courseId": "_999_2",
+      "course": {
+        "id": "_999_2",
+        "courseId": "SWE999_99999_2_999",
+        "displayId": "SWE999_99999",
+        "name": "Software Engineering Project",
+        "isOrganization": false,
+        "isAvailable": true,
+        "isClosed": false,
+        "term": {
+          "name": "First Term 1448/1449",
+          "startDate": "2026-08-23T00:00:00.000Z",
+          "endDate": "2026-12-24T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "role": "Student",
+      "courseId": "_999_3",
+      "course": {
+        "id": "_999_3",
+        "courseId": "SWE999_99998_1_999",
+        "displayId": "SWE999_99998",
+        "name": "Software Engineering Project",
+        "isOrganization": false,
+        "isAvailable": true,
+        "isClosed": false,
+        "term": {
+          "name": "First Term 1448/1449",
+          "startDate": "2026-08-23T00:00:00.000Z",
+          "endDate": "2026-12-24T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "role": "Student",
+      "courseId": "_998_1",
+      "course": {
+        "id": "_998_1",
+        "courseId": "ORG999_99999_1_999",
+        "displayId": "ORG999_99999",
+        "name": "CCIS Announcements",
+        "isOrganization": true,
+        "isAvailable": true,
+        "isClosed": false,
+        "term": null
+      }
+    },
+    {
+      "role": "Student",
+      "courseId": "_997_1",
+      "course": {
+        "id": "_997_1",
+        "courseId": "MATH999_11111_1_998",
+        "displayId": "MATH999_11111",
+        "name": "Calculus II",
+        "isOrganization": false,
+        "isAvailable": true,
+        "isClosed": true,
+        "term": {
+          "name": "First Term 1447/1448",
+          "startDate": "2025-08-24T00:00:00.000Z",
+          "endDate": "2025-12-25T00:00:00.000Z"
+        }
+      }
+    },
+    {
+      "role": "Student",
+      "courseId": "_996_1",
+      "course": {
+        "id": "_996_1",
+        "courseId": "ENG999_22222_1_999",
+        "displayId": "ENG999_22222",
+        "name": "Technical Writing",
+        "isOrganization": false,
+        "isAvailable": true,
+        "isClosed": false,
+        "term": null
+      }
+    },
+    {
+      "role": "Student",
+      "courseId": "_995_1",
+      "course": {
+        "id": "_995_1",
+        "courseId": "STAT999_33333_1_999",
+        "displayId": "STAT999_33333",
+        "name": "Statistics",
+        "isOrganization": false,
+        "isAvailable": false,
+        "isClosed": true,
+        "term": null
+      }
+    },
+    {
+      "role": "Student",
+      "courseId": "_994_1",
+      "course": {
+        "id": "_994_1",
+        "courseId": "SPECIAL-TOPIC",
+        "displayId": "SPECIAL-TOPIC",
+        "name": "Special Topic",
+        "isOrganization": false,
+        "isAvailable": true,
+        "isClosed": false,
+        "term": {
+          "name": "First Term 1448/1449",
+          "startDate": "2026-08-23T00:00:00.000Z",
+          "endDate": "2026-12-24T00:00:00.000Z"
+        }
+      }
+    }
+  ],
+  "paging": {
+    "nextPage": null
+  }
+}

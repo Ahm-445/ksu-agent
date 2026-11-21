@@ -81,6 +81,12 @@ export function MessageBubble({ message, onRetry }: MessageBubbleProps) {
               {message.text}
             </p>
 
+            {message.note ? (
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted" dir="auto">
+                {message.note}
+              </p>
+            ) : null}
+
             <button
               type="button"
               onClick={copy}
@@ -95,7 +101,12 @@ export function MessageBubble({ message, onRetry }: MessageBubbleProps) {
               <span>{copied ? t.chat.copied : t.chat.copy}</span>
             </button>
 
-            <Citations citations={message.citations ?? []} />
+            {message.personal ? null : (
+              <Citations
+                citations={message.citations ?? []}
+                basis={message.basis}
+              />
+            )}
           </div>
         )}
       </div>

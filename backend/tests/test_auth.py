@@ -439,7 +439,9 @@ def test_chat_with_a_session_answers(auth, monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert response.json()["citations"][0]["article"] == 62
-    assert len(fake.calls) == 1
+    # The classifier is asked first, because the regex does not recognise the wording;
+    # the answer is the second call.
+    assert len(fake.calls) == 2
 
     client.post("/auth/logout")
     client.cookies.clear()
